@@ -1,0 +1,121 @@
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — persistent data store
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '0.5'
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medusa}
+      POSTGRES_USER: ${POSTGRES_USER:-medusa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    ports:
+      - "5433:5432"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medusa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis — optional cache and event bus
+  # Drop this service and remove redis_data volume if RAM is constrained.
+  # In medusa-config.ts, switch eventBus and cache modules to in-memory.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.2'
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Medusa v2 backend — commerce engine
+  # Build ARM64-compatible image from ./backend/Dockerfile
+  # ---------------------------------------------------------------------------
+  medusa:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+          cpus: '0.8'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-medusa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "9000:9000"
+    networks:
+      - internal
+    # Run migrations then start. Safe to re-run — migrations are idempotent.
+    command: sh -c "node_modules/.bin/medusa db:migrate && node index.js"
+
+  # ---------------------------------------------------------------------------
+  # Caddy — reverse proxy with automatic TLS
+  # Routes external traffic to Medusa; storefront is served from Cloudflare Pages
+  # ---------------------------------------------------------------------------
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.2'
+    depends_on:
+      - medusa
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required (e.g. api.example.com)}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge

@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# Caddyfile — TomJerryDom production reverse proxy
+#
+# Set DOMAIN env var before starting, e.g.:
+#   DOMAIN=api.example.com docker compose up -d proxy
+#
+# Caddy handles TLS automatically via Let's Encrypt.
+# Storefront is on Cloudflare Pages — only the Medusa API lives here.
+# ---------------------------------------------------------------------------
+
+{$DOMAIN} {
+    # Proxy everything to the Medusa backend
+    reverse_proxy medusa:9000 {
+        # Pass real client IP through
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Health-check upstream before routing
+        health_uri /health
+        health_interval 15s
+        health_timeout 5s
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        # Remove Caddy's Server header
+        -Server
+    }
+
+    # Compress responses
+    encode zstd gzip
+
+    # Access log to stdout — Docker captures it
+    log {
+        output stdout
+        format json
+    }
+}

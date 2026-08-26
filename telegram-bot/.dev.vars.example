@@ -1,0 +1,5 @@
+# Copy to .dev.vars (never commit .dev.vars)
+TELEGRAM_BOT_TOKEN=<from BotFather>
+TELEGRAM_WEBHOOK_SECRET=<random string, min 32 chars>
+MEDUSA_BACKEND_URL=http://localhost:9000
+MEDUSA_API_KEY=<medusa publishable or secret key>

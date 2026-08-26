@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tomjerrydom-storefront",
+  "main": ".open-next/worker.js",
+  // Set to today's date or later; controls which CF runtime APIs are available
+  "compatibility_date": "2024-12-18",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // Required by OpenNext for internal self-invocation during ISR revalidation
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "tomjerrydom-storefront"
+    }
+  ],
+  // ISR incremental cache — bucket name must match NEXT_INC_CACHE_R2_BUCKET
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "tomjerrydom-isr-cache"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  }
+}

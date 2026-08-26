@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tomjerrydom-telegram-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Cart state keyed by Telegram chat_id
+  "kv_namespaces": [
+    { "binding": "CART_KV", "id": "<KV_NAMESPACE_ID>" }
+  ],
+
+  // Secrets — set via: wrangler secret put <NAME>
+  // TELEGRAM_BOT_TOKEN
+  // TELEGRAM_WEBHOOK_SECRET
+  // MEDUSA_BACKEND_URL
+  // MEDUSA_API_KEY
+
+  "observability": {
+    "enabled": true
+  }
+}
