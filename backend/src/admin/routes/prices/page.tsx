@@ -162,7 +162,7 @@ export default function PricesPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-6 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-3">
+      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-3">
         <div className="flex items-center gap-2">
           <Switch
             id="bulk-mode"
@@ -173,7 +173,7 @@ export default function PricesPage() {
             Same price for all variants
           </label>
         </div>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 sm:ml-auto">
           <Text className="text-sm text-ui-fg-muted">Currency:</Text>
           <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
             <Select.Trigger className="w-28">
