@@ -130,3 +130,18 @@ export const removeCartId = async () => {
     maxAge: -1,
   })
 }
+
+export const getTierId = async (): Promise<string> => {
+  const cookies = await nextCookies()
+  return cookies.get("_price_tier")?.value ?? "retail"
+}
+
+export const setTierId = async (tierId: string) => {
+  const cookies = await nextCookies()
+  cookies.set("_price_tier", tierId, {
+    maxAge: 60 * 60 * 24 * 30,
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+  })
+}

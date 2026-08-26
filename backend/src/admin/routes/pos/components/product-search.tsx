@@ -28,34 +28,30 @@ export function ProductSearch({ onAddItem }: Props) {
       sdk.admin.product.list({
         limit: 50,
         q: search || undefined,
-        status: ['published'],
-        fields: 'id,title,thumbnail,*variants,*variants.calculated_price',
+        fields: 'id,title,thumbnail,*variants',
       }),
     staleTime: 30_000,
   })
 
   const products = data?.products ?? []
 
+  function rubPrice(variant: HttpTypes.AdminProductVariant): number {
+    const prices = (variant as any).prices as Array<{ amount: number; currency_code: string }> | undefined
+    return prices?.find((p) => p.currency_code === 'rub')?.amount ?? 0
+  }
+
   function handleCardTap(product: HttpTypes.AdminProduct) {
     const variants = product.variants ?? []
     if (variants.length === 1) {
       const v = variants[0]
-      onAddItem({
-        variantId: v.id!,
-        quantity: 1,
-        unitPrice: (v as any)?.calculated_price?.calculated_amount ?? 0,
-      })
+      onAddItem({ variantId: v.id!, quantity: 1, unitPrice: rubPrice(v) })
     } else {
       setPickerProduct(product)
     }
   }
 
   function handleVariantPick(variant: HttpTypes.AdminProductVariant) {
-    onAddItem({
-      variantId: variant.id!,
-      quantity: 1,
-      unitPrice: (variant as any)?.calculated_price?.calculated_amount ?? 0,
-    })
+    onAddItem({ variantId: variant.id!, quantity: 1, unitPrice: rubPrice(variant) })
     setPickerProduct(null)
   }
 
@@ -116,7 +112,8 @@ function ProductCard({
 
   const price = useMemo(() => {
     if (variants.length > 1) return null
-    const p = (firstVariant as any)?.calculated_price?.calculated_amount
+    const prices = (firstVariant as any)?.prices as Array<{ amount: number; currency_code: string }> | undefined
+    const p = prices?.find((px) => px.currency_code === 'rub')?.amount
     if (p == null) return null
     return formatRub(p)
   }, [firstVariant, variants.length])
@@ -189,7 +186,8 @@ function VariantPicker({
         </FocusModal.Header>
         <FocusModal.Body className="flex flex-col gap-2 p-6">
           {variants.map((variant) => {
-            const amount = (variant as any)?.calculated_price?.calculated_amount
+            const prices = (variant as any)?.prices as Array<{ amount: number; currency_code: string }> | undefined
+            const amount = prices?.find((p) => p.currency_code === 'rub')?.amount
             return (
               <button
                 key={variant.id}

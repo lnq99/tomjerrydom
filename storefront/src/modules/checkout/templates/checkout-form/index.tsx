@@ -1,5 +1,7 @@
 import { listCartShippingMethods } from "@lib/data/fulfillment"
 import { listCartPaymentMethods } from "@lib/data/payment"
+import { getCartTierTotals, listTiers } from "@lib/data/tiers"
+import { getTierId } from "@lib/data/cookies"
 import { HttpTypes } from "@medusajs/types"
 import Addresses from "@modules/checkout/components/addresses"
 import Payment from "@modules/checkout/components/payment"
@@ -17,8 +19,14 @@ export default async function CheckoutForm({
     return null
   }
 
-  const shippingMethods = await listCartShippingMethods(cart.id)
-  const paymentMethods = await listCartPaymentMethods(cart.region?.id ?? "")
+  const [shippingMethods, paymentMethods, tiers, tierTotals, currentTierId] =
+    await Promise.all([
+      listCartShippingMethods(cart.id),
+      listCartPaymentMethods(cart.region?.id ?? ""),
+      listTiers(),
+      getCartTierTotals(cart.id),
+      getTierId(),
+    ])
 
   if (!shippingMethods || !paymentMethods) {
     return null
@@ -32,7 +40,12 @@ export default async function CheckoutForm({
 
       <Payment cart={cart} availablePaymentMethods={paymentMethods} />
 
-      <Review cart={cart} />
+      <Review
+        cart={cart}
+        tiers={tiers}
+        tierTotals={tierTotals}
+        currentTierId={currentTierId}
+      />
     </div>
   )
 }

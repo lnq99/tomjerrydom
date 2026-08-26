@@ -1,18 +1,33 @@
 "use client"
 
 import { Heading, Text, clx } from "@modules/common/components/ui"
-
 import PaymentButton from "../payment-button"
+import TierGate from "@modules/tiers/components/tier-gate"
 import { useSearchParams } from "next/navigation"
 import { HttpTypes } from "@medusajs/types"
+import { type Tier, type TierTotal } from "@lib/data/tiers"
 
-const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
+type ReviewProps = {
+  cart: HttpTypes.StoreCart
+  tiers?: Tier[]
+  tierTotals?: TierTotal[]
+  currentTierId?: string
+}
+
+const Review = ({
+  cart,
+  tiers = [],
+  tierTotals = [],
+  currentTierId = "retail",
+}: ReviewProps) => {
   const searchParams = useSearchParams()
 
   const isOpen = searchParams.get("step") === "review"
 
   const paidByGiftcard = !!(
-    (cart as unknown as Record<string, unknown>)?.gift_cards && ((cart as unknown as Record<string, unknown>)?.gift_cards as unknown[])?.length > 0 && cart?.total === 0
+    (cart as unknown as Record<string, unknown>)?.gift_cards &&
+    ((cart as unknown as Record<string, unknown>)?.gift_cards as unknown[])?.length > 0 &&
+    cart?.total === 0
   )
 
   const previousStepsCompleted =
@@ -47,7 +62,19 @@ const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
               </Text>
             </div>
           </div>
-          <PaymentButton cart={cart} data-testid="submit-order-button" />
+
+          {tiers.length > 1 ? (
+            <TierGate
+              cartItemSubtotal={cart.item_subtotal ?? 0}
+              tiers={tiers}
+              tierTotals={tierTotals}
+              currentTierId={currentTierId}
+            >
+              <PaymentButton cart={cart} data-testid="submit-order-button" />
+            </TierGate>
+          ) : (
+            <PaymentButton cart={cart} data-testid="submit-order-button" />
+          )}
         </>
       )}
     </div>
