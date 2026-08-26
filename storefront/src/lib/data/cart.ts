@@ -217,6 +217,24 @@ export async function deleteLineItem(lineId: string) {
     .catch(medusaError)
 }
 
+export async function decrementCartItem({
+  variantId,
+}: {
+  variantId: string
+}) {
+  const cart = await retrieveCart(undefined, "*items, *items.variant")
+  if (!cart) return
+
+  const lineItem = cart.items?.find((item) => item.variant_id === variantId)
+  if (!lineItem) return
+
+  if (lineItem.quantity <= 1) {
+    await deleteLineItem(lineItem.id)
+  } else {
+    await updateLineItem({ lineId: lineItem.id, quantity: lineItem.quantity - 1 })
+  }
+}
+
 export async function setShippingMethod({
   cartId,
   shippingMethodId,

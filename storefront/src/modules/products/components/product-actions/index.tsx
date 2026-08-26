@@ -1,6 +1,6 @@
 "use client"
 
-import { addToCart } from "@lib/data/cart"
+import { addToCart, decrementCartItem } from "@lib/data/cart"
 import { useIntersection } from "@lib/hooks/use-in-view"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@modules/common/components/ui"
@@ -38,6 +38,7 @@ export default function ProductActions({
 
   const [options, setOptions] = useState<Record<string, string | undefined>>({})
   const [isAdding, setIsAdding] = useState(false)
+  const [cartQuantity, setCartQuantity] = useState(0)
   const countryCode = useParams().countryCode as string
 
   // If there is only 1 variant, preselect the options
@@ -120,7 +121,11 @@ export default function ProductActions({
 
   const inView = useIntersection(actionsRef, "0px")
 
-  // add the selected variant to the cart
+  // reset counter when variant changes
+  useEffect(() => {
+    setCartQuantity(0)
+  }, [selectedVariant?.id])
+
   const handleAddToCart = async () => {
     if (!selectedVariant?.id) return null
 
@@ -132,6 +137,33 @@ export default function ProductActions({
       countryCode,
     })
 
+    setCartQuantity((q) => q + 1)
+    setIsAdding(false)
+  }
+
+  const handleIncrement = async () => {
+    if (!selectedVariant?.id) return
+
+    setIsAdding(true)
+
+    await addToCart({
+      variantId: selectedVariant.id,
+      quantity: 1,
+      countryCode,
+    })
+
+    setCartQuantity((q) => q + 1)
+    setIsAdding(false)
+  }
+
+  const handleDecrement = async () => {
+    if (!selectedVariant?.id) return
+
+    setIsAdding(true)
+
+    await decrementCartItem({ variantId: selectedVariant.id })
+
+    setCartQuantity((q) => Math.max(0, q - 1))
     setIsAdding(false)
   }
 
@@ -162,26 +194,53 @@ export default function ProductActions({
 
         <ProductPrice product={product} variant={selectedVariant} />
 
-        <Button
-          onClick={handleAddToCart}
-          disabled={
-            !inStock ||
-            !selectedVariant ||
-            !!disabled ||
-            isAdding ||
-            !isValidVariant
-          }
-          variant="primary"
-          className="w-full h-10"
-          isLoading={isAdding}
-          data-testid="add-product-button"
-        >
-          {!selectedVariant
-            ? "Select variant"
-            : !inStock || !isValidVariant
-            ? "Out of stock"
-            : "Add to cart"}
-        </Button>
+        {cartQuantity > 0 && inStock && selectedVariant && isValidVariant ? (
+          <div
+            className="flex items-center w-full h-10 border border-ui-border-base rounded-rounded overflow-hidden"
+            data-testid="quantity-controls"
+          >
+            <button
+              onClick={handleDecrement}
+              disabled={!!disabled || isAdding}
+              aria-label="Remove one from cart"
+              className="flex-1 flex items-center justify-center h-full text-ui-fg-base hover:bg-ui-bg-subtle transition-colors disabled:opacity-40 text-lg"
+            >
+              −
+            </button>
+            <span className="flex-shrink-0 px-4 text-sm font-medium tabular-nums text-ui-fg-base">
+              {cartQuantity}
+            </span>
+            <button
+              onClick={handleIncrement}
+              disabled={!!disabled || isAdding}
+              aria-label="Add one more to cart"
+              className="flex-1 flex items-center justify-center h-full text-ui-fg-base hover:bg-ui-bg-subtle transition-colors disabled:opacity-40 text-lg"
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <Button
+            onClick={handleAddToCart}
+            disabled={
+              !inStock ||
+              !selectedVariant ||
+              !!disabled ||
+              isAdding ||
+              !isValidVariant
+            }
+            variant="primary"
+            className="w-full h-10"
+            isLoading={isAdding}
+            data-testid="add-product-button"
+          >
+            {!selectedVariant
+              ? "Select variant"
+              : !inStock || !isValidVariant
+              ? "Out of stock"
+              : "Add to cart"}
+          </Button>
+        )}
         <MobileActions
           product={product}
           variant={selectedVariant}
