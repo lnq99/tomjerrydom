@@ -84,6 +84,34 @@ services:
     command: sh -c "node_modules/.bin/medusa db:migrate && node index.js"
 
   # ---------------------------------------------------------------------------
+  # NocoDB — spreadsheet UI over PostgreSQL (TEMP: for comparison with ag-grid)
+  # Remove this service and the nocodb_data volume when done comparing.
+  # Access: http://localhost:8080
+  # Connect it to the Medusa DB: host=postgres port=5432 db=medusa user/pass from .env
+  # ---------------------------------------------------------------------------
+  nocodb:
+    image: nocodb/nocodb:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.3'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      # NocoDB stores its own metadata in SQLite inside the container by default.
+      # To persist across restarts, mount the volume below.
+      NC_AUTH_JWT_SECRET: ${NC_AUTH_JWT_SECRET:-nocodb_change_me_in_prod}
+    volumes:
+      - nocodb_data:/usr/app/data
+    networks:
+      - internal
+
+  # ---------------------------------------------------------------------------
   # Caddy — reverse proxy with automatic TLS
   # Routes external traffic to Medusa; storefront is served from Cloudflare Pages
   # ---------------------------------------------------------------------------
@@ -115,6 +143,7 @@ volumes:
   redis_data:
   caddy_data:
   caddy_config:
+  nocodb_data:
 
 networks:
   internal:
