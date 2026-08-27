@@ -113,11 +113,13 @@ export type AdminOrder = {
 export async function listOrders(params?: {
   limit?: number
   offset?: number
+  created_at_gte?: string
 }): Promise<{ orders: AdminOrder[]; count: number }> {
   const qs = new URLSearchParams()
-  qs.set("limit", String(params?.limit ?? 20))
+  qs.set("limit", String(params?.limit ?? 50))
   qs.set("offset", String(params?.offset ?? 0))
   qs.set("fields", "id,display_id,status,total,subtotal,created_at,*customer,*items")
+  if (params?.created_at_gte) qs.set("created_at[gte]", params.created_at_gte)
   return apiFetch(`/admin/orders?${qs}`)
 }
 
