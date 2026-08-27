@@ -2,12 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Tree, useSimpleTree, NodeApi, NodeRendererProps } from "react-arborist"
+import { Tree, useSimpleTree, MoveHandler, NodeRendererProps } from "react-arborist"
 import { FolderOpen, Folder, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { listCategories, updateCategory, type AdminCategory } from "@/lib/api"
 
-// react-arborist node shape
 type CatNode = {
   id: string
   name: string
@@ -41,17 +40,12 @@ export default function CatalogPage() {
 
   const [treeData, controller] = useSimpleTree<CatNode>(initialNodes)
 
-  // sync tree when server data changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (data) controller.onReset?.(initialNodes)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data])
+  // re-key forces useSimpleTree to reinitialize when server data arrives
+  const treeKey = data ? "loaded" : "empty"
 
-  // fill container height
   useEffect(() => {
-    const el = containerRef.current
     if (!el) return
+    const el = containerRef.current!
     const obs = new ResizeObserver(() => {
       setSize({ width: el.clientWidth, height: el.clientHeight })
     })
@@ -59,16 +53,12 @@ export default function CatalogPage() {
     return () => obs.disconnect()
   }, [])
 
-  async function handleMove({ dragIds, parentId, index }: {
-    dragIds: string[]
-    parentId: string | null
-    index: number
-  }) {
-    controller.onMove({ dragIds, parentId, index })
+  const handleMove: MoveHandler<CatNode> = async (args) => {
+    controller.onMove(args)
     try {
       await Promise.all(
-        dragIds.map((id) =>
-          updateCategory(id, { parent_category_id: parentId ?? null })
+        args.dragIds.map((id) =>
+          updateCategory(id, { parent_category_id: args.parentId ?? null })
         )
       )
       qc.invalidateQueries({ queryKey: ["product-categories"] })
@@ -82,7 +72,7 @@ export default function CatalogPage() {
     <div className="flex flex-col h-full">
       <div className="border-b px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-bold">Каталог</h1>
-        <span className="text-xs text-muted-foreground">Перетащите категории для изменения порядка</span>
+        <span className="text-xs text-muted-foreground">Перетащите для изменения порядка</span>
       </div>
 
       <div ref={containerRef} className="flex-1 overflow-hidden px-2 py-2">
@@ -94,6 +84,7 @@ export default function CatalogPage() {
         )}
         {!isLoading && !isError && (
           <Tree<CatNode>
+            key={treeKey}
             data={treeData}
             {...controller}
             onMove={handleMove}
@@ -121,10 +112,10 @@ function CategoryNode({ node, style, dragHandle }: NodeRendererProps<CatNode>) {
       style={style}
       ref={dragHandle}
       className={[
-        "flex items-center gap-2 px-2 rounded-md select-none transition-colors",
+        "flex items-center gap-2 px-2 rounded-md select-none transition-colors cursor-grab active:cursor-grabbing",
         node.state.isSelected ? "bg-primary/10" : "hover:bg-accent",
         node.state.isDragging ? "opacity-50" : "",
-        node.state.isDropTarget ? "ring-1 ring-primary" : "",
+        node.state.willReceiveDrop ? "ring-1 ring-primary bg-primary/5" : "",
       ].join(" ")}
       onClick={() => node.toggle()}
     >
