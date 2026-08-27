@@ -90,12 +90,12 @@ services:
   # Connect it to the Medusa DB: host=postgres port=5432 db=medusa user/pass from .env
   # ---------------------------------------------------------------------------
   nocodb:
-    image: nocodb/nocodb:latest
+    image: nocodb/nocodb:0.202.10
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1200m
           cpus: '0.3'
     depends_on:
       postgres:
@@ -103,9 +103,11 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # NocoDB stores its own metadata in SQLite inside the container by default.
-      # To persist across restarts, mount the volume below.
       NC_AUTH_JWT_SECRET: ${NC_AUTH_JWT_SECRET:-nocodb_change_me_in_prod}
+      NODE_OPTIONS: "--max-old-space-size=1024"
+      NC_ADMIN_EMAIL: ${NC_ADMIN_EMAIL:-admin@local.dev}
+      NC_ADMIN_PASSWORD: ${NC_ADMIN_PASSWORD:-Admin1234!}
+      NC_ALLOW_LOCAL_URL: "true"
     volumes:
       - nocodb_data:/usr/app/data
     networks:
