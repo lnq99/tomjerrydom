@@ -2,15 +2,15 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ShoppingCart, ClipboardList, Package, BarChart2, Settings } from "lucide-react"
+import { ShoppingCart, ClipboardList, Package, BarChart2, LayoutList } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const items = [
   { href: "/pos", icon: ShoppingCart, label: "Касса" },
   { href: "/orders", icon: ClipboardList, label: "Заказы" },
   { href: "/products", icon: Package, label: "Товары" },
+  { href: "/catalog", icon: LayoutList, label: "Каталог" },
   { href: "/analytics", icon: BarChart2, label: "Аналитика" },
-  { href: "/pricing", icon: Settings, label: "Цены" },
 ]
 
 export function BottomNav() {

@@ -37,6 +37,7 @@ export default async function PaginatedProducts({
   countryCode,
   optionValueIds,
   searchQuery,
+  view,
 }: {
   sortBy?: SortOptions
   page: number
@@ -46,6 +47,7 @@ export default async function PaginatedProducts({
   countryCode: string
   optionValueIds?: OptionValueIds
   searchQuery?: string
+  view?: "grid" | "list"
 }) {
   const queryParams: PaginatedProductsParams = {
     limit: 12,
@@ -97,16 +99,22 @@ export default async function PaginatedProducts({
     )
   }
 
+  const isList = view === "list"
+
   return (
     <>
       <ul
-        className="grid grid-cols-2 w-full small:grid-cols-3 medium:grid-cols-4 gap-x-6 gap-y-8"
+        className={
+          isList
+            ? "w-full"
+            : "grid grid-cols-2 w-full small:grid-cols-3 medium:grid-cols-4 gap-x-6 gap-y-8"
+        }
         data-testid="products-list"
       >
         {filtered.map((p) => {
           return (
             <li key={p.id}>
-              <ProductPreview product={p} region={region} />
+              <ProductPreview product={p} region={region} listView={isList} />
             </li>
           )
         })}

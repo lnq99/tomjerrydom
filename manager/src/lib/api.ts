@@ -98,6 +98,28 @@ export async function updateProduct(
   return apiFetch(`/admin/products/${id}`, { method: "POST", body: JSON.stringify(data) })
 }
 
+// ── Product Categories ───────────────────────────────────────────────────────
+export type AdminCategory = {
+  id: string
+  name: string
+  handle: string
+  is_active: boolean
+  is_internal: boolean
+  parent_category_id: string | null
+  category_children: AdminCategory[]
+}
+
+export async function listCategories(): Promise<{ product_categories: AdminCategory[] }> {
+  return apiFetch("/admin/product-categories?include_descendants_tree=true&fields=id,name,handle,is_active,is_internal,parent_category_id,*category_children")
+}
+
+export async function updateCategory(
+  id: string,
+  data: { parent_category_id?: string | null; rank?: number }
+): Promise<void> {
+  await apiFetch(`/admin/product-categories/${id}`, { method: "POST", body: JSON.stringify(data) })
+}
+
 // ── Orders ───────────────────────────────────────────────────────────────────
 export type AdminOrder = {
   id: string

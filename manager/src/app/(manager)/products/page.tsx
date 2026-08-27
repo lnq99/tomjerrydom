@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { Search, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -89,11 +90,15 @@ export default function ProductsPage() {
 }
 
 function ProductRow({ product }: { product: AdminProduct }) {
+  const router = useRouter()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
 
   return (
-    <li className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors">
+    <li
+      className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors cursor-pointer"
+      onClick={() => router.push(`/products/${product.id}`)}
+    >
       {product.thumbnail ? (
         <img src={product.thumbnail} alt="" className="h-12 w-12 rounded object-cover shrink-0" />
       ) : (
@@ -104,16 +109,21 @@ function ProductRow({ product }: { product: AdminProduct }) {
         <p className="text-xs text-muted-foreground">{category} · {product.variants?.length ?? 0} вар.</p>
       </div>
       <Badge variant={s.variant}>{s.label}</Badge>
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
     </li>
   )
 }
 
 function ProductTableRow({ product }: { product: AdminProduct }) {
+  const router = useRouter()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
 
   return (
-    <tr className="hover:bg-accent/50 transition-colors">
+    <tr
+      className="hover:bg-accent/50 transition-colors cursor-pointer"
+      onClick={() => router.push(`/products/${product.id}`)}
+    >
       <td className="px-4 py-3">
         {product.thumbnail ? (
           <img src={product.thumbnail} alt="" className="h-10 w-10 rounded object-cover" />

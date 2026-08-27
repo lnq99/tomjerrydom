@@ -14,6 +14,7 @@ type StorePageSearchParams = Record<string, string | string[] | undefined> & {
   page?: string
   optionValueIds?: string | string[]
   q?: string
+  view?: "grid" | "list"
 }
 
 type Params = {
@@ -26,7 +27,7 @@ type Params = {
 export default async function StorePage(props: Params) {
   const params = await props.params;
   const searchParams = await props.searchParams;
-  const { sortBy, page, q } = searchParams
+  const { sortBy, page, q, view } = searchParams
   const optionValueIds = parseOptionValueIds(searchParams)
 
   return (
@@ -36,6 +37,7 @@ export default async function StorePage(props: Params) {
       countryCode={params.countryCode}
       optionValueIds={optionValueIds}
       searchQuery={typeof q === "string" ? q : undefined}
+      view={view === "list" ? "list" : "grid"}
     />
   )
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ShoppingCart, ClipboardList, Package, BarChart2, Settings, LogOut } from "lucide-react"
+import { ShoppingCart, ClipboardList, Package, BarChart2, Settings, LogOut, LayoutList } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { clearToken } from "@/lib/api"
 
@@ -10,6 +10,7 @@ const items = [
   { href: "/pos", icon: ShoppingCart, label: "Касса" },
   { href: "/orders", icon: ClipboardList, label: "Заказы" },
   { href: "/products", icon: Package, label: "Товары" },
+  { href: "/catalog", icon: LayoutList, label: "Каталог" },
   { href: "/analytics", icon: BarChart2, label: "Аналитика" },
   { href: "/pricing", icon: Settings, label: "Ценообразование" },
 ]
