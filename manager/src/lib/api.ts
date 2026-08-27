@@ -1,0 +1,158 @@
+const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+
+function getToken(): string | null {
+  if (typeof document === "undefined") return null
+  const match = document.cookie.match(/(?:^|;\s*)manager_token=([^;]*)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+export function setToken(token: string) {
+  const maxAge = 60 * 60 * 24 * 7 // 7 days
+  document.cookie = `manager_token=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Strict`
+}
+
+export function clearToken() {
+  document.cookie = "manager_token=; path=/; max-age=0"
+}
+
+class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+  }
+}
+
+async function apiFetch<T>(
+  path: string,
+  options: RequestInit & { token?: string } = {}
+): Promise<T> {
+  const token = options.token ?? getToken()
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  }
+  if (token) headers["Authorization"] = `Bearer ${token}`
+
+  const res = await fetch(`${BACKEND_URL}${path}`, {
+    ...options,
+    headers,
+    body: options.body ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined,
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }))
+    throw new ApiError(res.status, err.message ?? res.statusText)
+  }
+
+  return res.json() as Promise<T>
+}
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+export async function login(email: string, password: string): Promise<string> {
+  const res = await apiFetch<{ token: string }>("/auth/user/emailpass", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  })
+  return res.token
+}
+
+// ── Products ────────────────────────────────────────────────────────────────
+export type AdminProduct = {
+  id: string
+  title: string
+  thumbnail: string | null
+  status: string
+  metadata: Record<string, unknown> | null
+  categories: { id: string; name: string }[]
+  variants: AdminVariant[]
+}
+
+export type AdminVariant = {
+  id: string
+  title: string
+  sku: string | null
+  prices: { id: string; amount: number; currency_code: string }[]
+  inventory_quantity?: number
+}
+
+export async function listProducts(params?: {
+  q?: string
+  limit?: number
+  offset?: number
+}): Promise<{ products: AdminProduct[]; count: number }> {
+  const qs = new URLSearchParams()
+  if (params?.q) qs.set("q", params.q)
+  qs.set("limit", String(params?.limit ?? 50))
+  qs.set("offset", String(params?.offset ?? 0))
+  qs.set("fields", "id,title,thumbnail,status,metadata,*variants,*categories")
+  return apiFetch(`/admin/products?${qs}`)
+}
+
+export async function getProduct(id: string): Promise<{ product: AdminProduct }> {
+  return apiFetch(`/admin/products/${id}?fields=id,title,thumbnail,status,metadata,*variants,*categories`)
+}
+
+export async function updateProduct(
+  id: string,
+  data: Partial<{ title: string; metadata: Record<string, unknown>; status: string }>
+): Promise<{ product: AdminProduct }> {
+  return apiFetch(`/admin/products/${id}`, { method: "POST", body: JSON.stringify(data) })
+}
+
+// ── Orders ───────────────────────────────────────────────────────────────────
+export type AdminOrder = {
+  id: string
+  display_id: number
+  status: string
+  total: number
+  subtotal: number
+  created_at: string
+  customer: { email: string; first_name?: string; last_name?: string } | null
+  items: { id: string; title: string; quantity: number; unit_price: number; total: number }[]
+}
+
+export async function listOrders(params?: {
+  limit?: number
+  offset?: number
+}): Promise<{ orders: AdminOrder[]; count: number }> {
+  const qs = new URLSearchParams()
+  qs.set("limit", String(params?.limit ?? 20))
+  qs.set("offset", String(params?.offset ?? 0))
+  qs.set("fields", "id,display_id,status,total,subtotal,created_at,*customer,*items")
+  return apiFetch(`/admin/orders?${qs}`)
+}
+
+// ── Pricing config ───────────────────────────────────────────────────────────
+export type PricingConfig = {
+  tiers: { id: string; label: string; min_order_amount: number; sort_order: number }[]
+  default_profit: Record<string, number>
+  categories: { id: string; name: string; tier_profit: Record<string, number> }[]
+  products: {
+    id: string
+    title: string
+    thumbnail: string | null
+    capital: number
+    category_id: string | null
+    category_name: string | null
+    calculated_prices: Record<string, number>
+  }[]
+}
+
+export async function getPricingConfig(): Promise<PricingConfig> {
+  return apiFetch("/admin/pricing-config")
+}
+
+export async function saveCategoryMargins(
+  updates: { category_id: string; tier_profit: Record<string, number> }[]
+): Promise<void> {
+  await apiFetch("/admin/pricing-config", { method: "POST", body: JSON.stringify({ updates }) })
+}
+
+export async function saveProductCapitals(
+  updates: { product_id: string; capital: number }[]
+): Promise<void> {
+  await apiFetch("/admin/pricing-config/products", { method: "POST", body: JSON.stringify({ updates }) })
+}
+
+export async function syncPrices(): Promise<{ updated: number; created: number; skipped: number }> {
+  return apiFetch("/admin/pricing-config/sync", { method: "POST" })
+}
