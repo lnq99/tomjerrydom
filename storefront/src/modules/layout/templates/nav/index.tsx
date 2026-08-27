@@ -3,17 +3,22 @@ import { Suspense } from "react"
 import { listLocales } from "@lib/data/locales"
 import { getLocale } from "@lib/data/locale-actions"
 import { listRegions } from "@lib/data/regions"
+import { listTiers } from "@lib/data/tiers"
+import { getTierId } from "@lib/data/cookies"
 import { StoreRegion } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CartButton from "@modules/layout/components/cart-button"
 import SearchBox from "@modules/layout/components/search-box"
 import SideMenu from "@modules/layout/components/side-menu"
+import NavTierDropdown from "@modules/tiers/components/nav-tier-dropdown"
 
 export default async function Nav() {
-  const [regions, locales, currentLocale] = await Promise.all([
+  const [regions, locales, currentLocale, tiers, currentTierId] = await Promise.all([
     listRegions().then((regions: StoreRegion[]) => regions),
     listLocales(),
     getLocale(),
+    listTiers(),
+    getTierId(),
   ])
 
   return (
@@ -38,6 +43,9 @@ export default async function Nav() {
 
           <div className="flex items-center gap-x-6 h-full flex-1 basis-0 justify-end">
             <div className="hidden small:flex items-center gap-x-4 h-full">
+              {tiers.length > 1 && (
+                <NavTierDropdown tiers={tiers} currentTierId={currentTierId} />
+              )}
               <Suspense fallback={null}>
                 <SearchBox className="w-48 medium:w-64" />
               </Suspense>

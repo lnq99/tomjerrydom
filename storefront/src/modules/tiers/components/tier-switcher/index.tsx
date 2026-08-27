@@ -1,7 +1,7 @@
 "use client"
 
 import { selectTier, type Tier, type TierTotal } from "@lib/data/tiers"
-import { clx } from "@modules/common/components/ui"
+import { useTransition } from "react"
 
 function formatRub(kopecks: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -18,59 +18,46 @@ type Props = {
 }
 
 export default function TierSwitcher({ tiers, tierTotals, currentTierId }: Props) {
+  const [, startTransition] = useTransition()
   if (tiers.length <= 1) return null
 
   const currentTier = tiers.find((t) => t.id === currentTierId) ?? tiers[0]
-  const currentTotal = tierTotals.find((t) => t.id === currentTierId)
-  const alternatives = tierTotals.filter((t) => t.id !== currentTierId)
 
-  if (alternatives.length === 0) return null
+  // Tiers with higher minimum than current (potential upgrades), sorted ascending
+  const higherTiers = tiers
+    .filter((t) => t.min_order_amount > currentTier.min_order_amount)
+    .sort((a, b) => a.sort_order - b.sort_order)
+
+  // Tiers whose prices the cart already qualifies for
+  const qualifyingUpgrades = higherTiers.filter((tier) => {
+    const tt = tierTotals.find((x) => x.id === tier.id)
+    return tt && tt.subtotal >= tier.min_order_amount
+  })
+
+  if (qualifyingUpgrades.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="txt-compact-small-plus text-ui-fg-subtle">
-          Текущий тип цен
-        </span>
-        <span className="txt-compact-small-plus text-ui-fg-base">
-          {currentTier.label}
-        </span>
-      </div>
-
-      {alternatives.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <span className="txt-xsmall text-ui-fg-muted">Переключить на:</span>
-          <div className="flex flex-wrap gap-2">
-            {alternatives.map((alt) => {
-              const tier = tiers.find((t) => t.id === alt.id)
-              if (!tier) return null
-              return (
-                <button
-                  key={alt.id}
-                  type="button"
-                  onClick={() => selectTier(alt.id)}
-                  className={clx(
-                    "rounded border border-ui-border-base bg-ui-bg-base px-3 py-1.5",
-                    "txt-compact-small text-ui-fg-base hover:bg-ui-bg-base-hover transition-colors"
-                  )}
-                >
-                  {tier.label}{" "}
-                  <span className="text-ui-fg-muted">
-                    [{formatRub(alt.subtotal)}]
-                  </span>
-                </button>
-              )
-            })}
+    <div className="flex flex-col gap-2">
+      {qualifyingUpgrades.map((tier) => {
+        const tt = tierTotals.find((x) => x.id === tier.id)!
+        return (
+          <div
+            key={tier.id}
+            className="rounded-lg border border-ui-tag-green-border bg-ui-tag-green-bg p-3 flex flex-col gap-2"
+          >
+            <p className="txt-small text-ui-tag-green-text">
+              Ваша корзина подходит для тарифа «{tier.label}»
+            </p>
+            <button
+              type="button"
+              onClick={() => startTransition(() => selectTier(tier.id))}
+              className="w-full rounded border border-ui-tag-green-border bg-ui-tag-green-bg hover:bg-ui-tag-green-text/10 txt-compact-small-plus text-ui-tag-green-text py-2 transition-colors"
+            >
+              Перейти на «{tier.label}» ({formatRub(tt.subtotal)})
+            </button>
           </div>
-        </div>
-      )}
-
-      {currentTotal && currentTier.min_order_amount > 0 && (
-        <p className="txt-xsmall text-ui-fg-muted">
-          Минимум для {currentTier.label}:{" "}
-          {formatRub(currentTier.min_order_amount)}
-        </p>
-      )}
+        )
+      })}
     </div>
   )
 }
