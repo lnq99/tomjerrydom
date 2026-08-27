@@ -19,7 +19,7 @@ export async function POST(
 
   const { data: [cart] } = await query.graph({
     entity: "cart",
-    fields: ["id", "items.variant_id", "items.quantity"],
+    fields: ["id", "items.variant_id", "items.quantity", "items.unit_price"],
     filters: { id: [cart_id] },
   })
 
@@ -73,12 +73,17 @@ export async function POST(
     let subtotal = 0
     for (const item of items) {
       const variant = variantMap.get(item.variant_id)
-      if (!variant) continue
-      const capital: number = (variant.product?.metadata as any)?.capital
-      if (!capital) continue
-      const categories = variant.product?.categories ?? []
-      const profit = getTierProfit(categories, tier.id)
-      subtotal += calcPrice(capital, profit) * item.quantity
+      const capital: number | undefined = variant
+        ? (variant.product?.metadata as any)?.capital
+        : undefined
+      if (capital) {
+        const categories = variant.product?.categories ?? []
+        const profit = getTierProfit(categories, tier.id)
+        subtotal += calcPrice(capital, profit) * item.quantity
+      } else {
+        // No capital set — price doesn't vary by tier, use current unit_price
+        subtotal += (item.unit_price ?? 0) * item.quantity
+      }
     }
     return { id: tier.id, label: tier.label, min_order_amount: tier.min_order_amount, subtotal }
   })
