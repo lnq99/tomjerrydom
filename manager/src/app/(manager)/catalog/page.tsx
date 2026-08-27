@@ -44,8 +44,8 @@ export default function CatalogPage() {
   const treeKey = data ? "loaded" : "empty"
 
   useEffect(() => {
+    const el = containerRef.current
     if (!el) return
-    const el = containerRef.current!
     const obs = new ResizeObserver(() => {
       setSize({ width: el.clientWidth, height: el.clientHeight })
     })
