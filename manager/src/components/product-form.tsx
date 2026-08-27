@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input"
 import {
   AdminProduct, AdminCategory,
   updateProduct, createProduct,
-  updateVariant, createVariant, deleteVariant,
+  createVariant, deleteVariant,
+  updateVariant,
   uploadFile, listCategories, listStockLocations,
   setInventoryLevel, getVariantInventoryItems,
+  saveProductCapitals,
   type CreateProductInput,
 } from "@/lib/api"
 import { rubles, toKopecks } from "@/lib/utils"
@@ -27,7 +29,6 @@ type VariantRow = {
   sku: string
   stock: string
   initialStock: string
-  priceId?: string     // existing RUB price record ID — required by Medusa v2 to update in-place
   deleted?: boolean
 }
 
@@ -35,7 +36,7 @@ type FormState = {
   title: string
   status: "published" | "draft" | "rejected"
   categoryId: string
-  price: string          // single price applied to all variants
+  capital: string        // import price in rubles (stored as kopecks in metadata)
   images: ImageItem[]
   variants: VariantRow[]
 }
@@ -57,7 +58,6 @@ function flattenCats(
 function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
   const qty = v.inventory_quantity
   const stock = qty !== undefined && qty !== null ? String(qty) : ""
-  const rubPrice = v.prices?.find((p) => p.currency_code === "rub")
   return {
     _key: v.id,
     id: v.id,
@@ -65,20 +65,16 @@ function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
     sku: v.sku ?? "",
     stock,
     initialStock: stock,
-    priceId: rubPrice?.id,
   }
 }
 
 function initForm(product?: AdminProduct): FormState {
-  // use first variant's RUB price as the shared product price
-  const firstRubPrice = product?.variants
-    ?.flatMap((v) => v.prices ?? [])
-    .find((p) => p.currency_code === "rub")
+  const capital = (product?.metadata?.capital as number) ?? 0
   return {
     title: product?.title ?? "",
     status: (product?.status ?? "draft") as FormState["status"],
     categoryId: product?.categories?.[0]?.id ?? "",
-    price: rubles(firstRubPrice?.amount ?? 0),
+    capital: rubles(capital),
     images: product?.images?.map((img) => ({ url: img.url })) ?? [],
     variants: product?.variants?.map(variantToRow) ??
       [{ _key: makeKey(), title: "", sku: "", stock: "", initialStock: "" }],
@@ -217,11 +213,6 @@ export function ProductForm({
     }
   }
 
-  const priceKopecks = toKopecks(form.price)
-  const pricePayload = form.price
-    ? [{ currency_code: "rub", amount: priceKopecks }]
-    : []
-
   async function doCreate() {
     const activeVariants = form.variants.filter((v) => !v.deleted && v.title.trim())
     const input: CreateProductInput = {
@@ -235,11 +226,13 @@ export function ProductForm({
             title: v.title.trim(),
             sku: v.sku.trim() || undefined,
             manage_inventory: true,
-            prices: pricePayload,
           }))
         : undefined,
     }
     const { product: created } = await createProduct(input)
+    if (form.capital) {
+      await saveProductCapitals([{ product_id: created.id, capital: toKopecks(form.capital) }])
+    }
     qc.invalidateQueries({ queryKey: ["products"] })
     toast.success("Товар создан")
     router.replace(`/products/${created.id}`)
@@ -256,6 +249,10 @@ export function ProductForm({
       thumbnail: form.images[0]?.url ?? null,
     })
 
+    if (form.capital) {
+      await saveProductCapitals([{ product_id: product.id, capital: toKopecks(form.capital) }])
+    }
+
     const toDelete = form.variants.filter((v) => v.deleted && v.id)
     const toUpdate = form.variants.filter((v) => !v.deleted && v.id)
     const toCreate = form.variants.filter((v) => !v.deleted && !v.id && v.title.trim())
@@ -266,9 +263,6 @@ export function ProductForm({
         updateVariant(product.id, v.id!, {
           title: v.title.trim(),
           sku: v.sku.trim() || undefined,
-          prices: form.price
-            ? [{ id: v.priceId, currency_code: "rub", amount: priceKopecks }]
-            : [],
         })
       )
     )
@@ -278,7 +272,6 @@ export function ProductForm({
           title: v.title.trim(),
           sku: v.sku.trim() || undefined,
           manage_inventory: true,
-          prices: pricePayload,
         })
       )
     )
@@ -392,10 +385,10 @@ export function ProductForm({
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Цена ₽</label>
+                    <label className="text-sm font-medium">Себестоимость ₽</label>
                     <Input
-                      value={form.price}
-                      onChange={(e) => setField("price", e.target.value)}
+                      value={form.capital}
+                      onChange={(e) => setField("capital", e.target.value)}
                       placeholder="0"
                       type="number"
                       min="0"

@@ -7,7 +7,7 @@ import { Search, ChevronRight, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { listProducts, updateProduct, updateVariant, type AdminProduct } from "@/lib/api"
+import { listProducts, updateProduct, saveProductCapitals, type AdminProduct } from "@/lib/api"
 import { formatRub, rubles, toKopecks } from "@/lib/utils"
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
@@ -85,7 +85,7 @@ export default function ProductsPage() {
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Товар</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Категория</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Вар.</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Цена</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Себест.</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Статус</th>
                     <th className="px-4 py-3 w-8"></th>
                   </tr>
@@ -109,9 +109,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
   const qc = useQueryClient()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
-
-  const rubPrices = product.variants?.flatMap((v) => v.prices ?? []).filter((p) => p.currency_code === "rub") ?? []
-  const minKopecks = rubPrices.length ? Math.min(...rubPrices.map((p) => p.amount)) : 0
+  const capital = (product.metadata?.capital as number) ?? 0
 
   async function cycleStatus(e: React.MouseEvent) {
     e.stopPropagation()
@@ -138,7 +136,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{product.title}</p>
         <p className="text-xs text-muted-foreground">
-          {category} · {product.variants?.length ?? 0} вар. · {minKopecks ? formatRub(minKopecks) : "—"}
+          {category} · {product.variants?.length ?? 0} вар. · {capital ? formatRub(capital) : "—"}
         </p>
       </div>
       <button type="button" onClick={cycleStatus} title="Сменить статус">
@@ -156,40 +154,31 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
   const qc = useQueryClient()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
+  const capital = (product.metadata?.capital as number) ?? 0
 
-  const rubPrices = product.variants?.flatMap((v) => v.prices ?? []).filter((p) => p.currency_code === "rub") ?? []
-  const minKopecks = rubPrices.length ? Math.min(...rubPrices.map((p) => p.amount)) : 0
-
-  const [editingPrice, setEditingPrice] = useState(false)
-  const [priceVal, setPriceVal] = useState(() => rubles(minKopecks))
-  const [savingPrice, setSavingPrice] = useState(false)
+  const [editingCapital, setEditingCapital] = useState(false)
+  const [capitalVal, setCapitalVal] = useState(() => rubles(capital))
+  const [savingCapital, setSavingCapital] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
 
   // keep input in sync when query refetches
   useEffect(() => {
-    if (!editingPrice) setPriceVal(rubles(minKopecks))
-  }, [minKopecks, editingPrice])
+    if (!editingCapital) setCapitalVal(rubles(capital))
+  }, [capital, editingCapital])
 
-  async function savePrice() {
-    setEditingPrice(false)
-    const newKopecks = toKopecks(priceVal)
-    if (newKopecks === minKopecks) return
-    setSavingPrice(true)
+  async function saveCapital() {
+    setEditingCapital(false)
+    const newKopecks = toKopecks(capitalVal)
+    if (newKopecks === capital) return
+    setSavingCapital(true)
     try {
-      await Promise.all(
-        (product.variants ?? []).map((v) => {
-          const existingRubPrice = v.prices?.find((p) => p.currency_code === "rub")
-          return updateVariant(product.id, v.id, {
-            prices: [{ id: existingRubPrice?.id, currency_code: "rub", amount: newKopecks }],
-          })
-        })
-      )
+      await saveProductCapitals([{ product_id: product.id, capital: newKopecks }])
       qc.invalidateQueries({ queryKey: ["products"] })
     } catch {
-      toast.error("Не удалось обновить цену")
-      setPriceVal(rubles(minKopecks))
+      toast.error("Не удалось обновить себестоимость")
+      setCapitalVal(rubles(capital))
     } finally {
-      setSavingPrice(false)
+      setSavingCapital(false)
     }
   }
 
@@ -228,28 +217,28 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
       {/* Variants count */}
       <td className="px-4 py-3 text-muted-foreground">{product.variants?.length ?? 0}</td>
 
-      {/* Price — click cell to edit */}
+      {/* Capital — click cell to edit */}
       <td
         className="px-4 py-3"
-        onClick={(e) => { e.stopPropagation(); if (!savingPrice) setEditingPrice(true) }}
+        onClick={(e) => { e.stopPropagation(); if (!savingCapital) setEditingCapital(true) }}
       >
-        {editingPrice ? (
+        {editingCapital ? (
           <input
             autoFocus
             type="number"
             min="0"
-            value={priceVal}
-            onChange={(e) => setPriceVal(e.target.value)}
-            onBlur={savePrice}
+            value={capitalVal}
+            onChange={(e) => setCapitalVal(e.target.value)}
+            onBlur={saveCapital}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur()
-              if (e.key === "Escape") { setEditingPrice(false); setPriceVal(rubles(minKopecks)) }
+              if (e.key === "Escape") { setEditingCapital(false); setCapitalVal(rubles(capital)) }
             }}
             className="h-7 w-24 rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           />
         ) : (
-          <span className={`text-sm ${savingPrice ? "opacity-40" : "hover:underline underline-offset-2 cursor-text"}`}>
-            {minKopecks ? formatRub(minKopecks) : <span className="text-muted-foreground">—</span>}
+          <span className={`text-sm ${savingCapital ? "opacity-40" : "hover:underline underline-offset-2 cursor-text"}`}>
+            {capital ? formatRub(capital) : <span className="text-muted-foreground">—</span>}
           </span>
         )}
       </td>
