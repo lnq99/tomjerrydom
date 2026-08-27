@@ -142,7 +142,7 @@ export async function createProduct(data: CreateProductInput): Promise<{ product
 export async function updateVariant(
   productId: string,
   variantId: string,
-  data: { title?: string; sku?: string; prices?: { currency_code: string; amount: number }[] }
+  data: { title?: string; sku?: string; prices?: { id?: string; currency_code: string; amount: number }[] }
 ): Promise<void> {
   await apiFetch(`/admin/products/${productId}/variants/${variantId}`, {
     method: "POST",

@@ -1,6 +1,6 @@
 const AboutStore = () => {
   return (
-    <section className="content-container py-12 border-t border-ui-border-base">
+    <section id="about" className="content-container py-12 border-t border-ui-border-base">
       <h2 className="text-2xl font-semibold text-ui-fg-base mb-6">О магазине</h2>
       <div className="flex flex-col small:flex-row gap-6">
         {/* Info card */}

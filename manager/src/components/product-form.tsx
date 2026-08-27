@@ -25,9 +25,9 @@ type VariantRow = {
   id?: string
   title: string
   sku: string
-  price: string
   stock: string
   initialStock: string
+  priceId?: string     // existing RUB price record ID — required by Medusa v2 to update in-place
   deleted?: boolean
 }
 
@@ -35,6 +35,7 @@ type FormState = {
   title: string
   status: "published" | "draft" | "rejected"
   categoryId: string
+  price: string          // single price applied to all variants
   images: ImageItem[]
   variants: VariantRow[]
 }
@@ -54,28 +55,33 @@ function flattenCats(
 }
 
 function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
-  const rubPrice = v.prices?.find((p) => p.currency_code === "rub")
   const qty = v.inventory_quantity
   const stock = qty !== undefined && qty !== null ? String(qty) : ""
+  const rubPrice = v.prices?.find((p) => p.currency_code === "rub")
   return {
     _key: v.id,
     id: v.id,
     title: v.title,
     sku: v.sku ?? "",
-    price: rubles(rubPrice?.amount ?? 0),
     stock,
     initialStock: stock,
+    priceId: rubPrice?.id,
   }
 }
 
 function initForm(product?: AdminProduct): FormState {
+  // use first variant's RUB price as the shared product price
+  const firstRubPrice = product?.variants
+    ?.flatMap((v) => v.prices ?? [])
+    .find((p) => p.currency_code === "rub")
   return {
     title: product?.title ?? "",
     status: (product?.status ?? "draft") as FormState["status"],
     categoryId: product?.categories?.[0]?.id ?? "",
+    price: rubles(firstRubPrice?.amount ?? 0),
     images: product?.images?.map((img) => ({ url: img.url })) ?? [],
     variants: product?.variants?.map(variantToRow) ??
-      [{ _key: makeKey(), title: "", sku: "", price: "", stock: "", initialStock: "" }],
+      [{ _key: makeKey(), title: "", sku: "", stock: "", initialStock: "" }],
   }
 }
 
@@ -153,9 +159,7 @@ export function ProductForm({
     })
   }
 
-  function handleDragStart(idx: number) {
-    dragSrcIdx.current = idx
-  }
+  function handleDragStart(idx: number) { dragSrcIdx.current = idx }
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault()
     setDragOverIdx(idx)
@@ -163,10 +167,7 @@ export function ProductForm({
   function handleDrop(e: React.DragEvent, toIdx: number) {
     e.preventDefault()
     const fromIdx = dragSrcIdx.current
-    if (fromIdx === null || fromIdx === toIdx) {
-      setDragOverIdx(null)
-      return
-    }
+    if (fromIdx === null || fromIdx === toIdx) { setDragOverIdx(null); return }
     setForm((f) => {
       const imgs = [...f.images]
       const [moved] = imgs.splice(fromIdx, 1)
@@ -176,10 +177,7 @@ export function ProductForm({
     dragSrcIdx.current = null
     setDragOverIdx(null)
   }
-  function handleDragEnd() {
-    dragSrcIdx.current = null
-    setDragOverIdx(null)
-  }
+  function handleDragEnd() { dragSrcIdx.current = null; setDragOverIdx(null) }
 
   // ── Variants ─────────────────────────────────────────────────
   function addVariant() {
@@ -187,7 +185,7 @@ export function ProductForm({
       ...f,
       variants: [
         ...f.variants,
-        { _key: makeKey(), title: "", sku: "", price: "", stock: "", initialStock: "" },
+        { _key: makeKey(), title: "", sku: "", stock: "", initialStock: "" },
       ],
     }))
   }
@@ -208,23 +206,21 @@ export function ProductForm({
 
   // ── Save ─────────────────────────────────────────────────────
   async function handleSave() {
-    if (!form.title.trim()) {
-      toast.error("Введите название товара")
-      return
-    }
+    if (!form.title.trim()) { toast.error("Введите название товара"); return }
     setSaving(true)
     try {
-      if (product) {
-        await doUpdate()
-      } else {
-        await doCreate()
-      }
+      if (product) { await doUpdate() } else { await doCreate() }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Ошибка сохранения")
     } finally {
       setSaving(false)
     }
   }
+
+  const priceKopecks = toKopecks(form.price)
+  const pricePayload = form.price
+    ? [{ currency_code: "rub", amount: priceKopecks }]
+    : []
 
   async function doCreate() {
     const activeVariants = form.variants.filter((v) => !v.deleted && v.title.trim())
@@ -239,7 +235,7 @@ export function ProductForm({
             title: v.title.trim(),
             sku: v.sku.trim() || undefined,
             manage_inventory: true,
-            prices: v.price ? [{ currency_code: "rub", amount: toKopecks(v.price) }] : [],
+            prices: pricePayload,
           }))
         : undefined,
     }
@@ -270,7 +266,9 @@ export function ProductForm({
         updateVariant(product.id, v.id!, {
           title: v.title.trim(),
           sku: v.sku.trim() || undefined,
-          prices: v.price ? [{ currency_code: "rub", amount: toKopecks(v.price) }] : [],
+          prices: form.price
+            ? [{ id: v.priceId, currency_code: "rub", amount: priceKopecks }]
+            : [],
         })
       )
     )
@@ -280,7 +278,7 @@ export function ProductForm({
           title: v.title.trim(),
           sku: v.sku.trim() || undefined,
           manage_inventory: true,
-          prices: v.price ? [{ currency_code: "rub", amount: toKopecks(v.price) }] : [],
+          prices: pricePayload,
         })
       )
     )
@@ -290,8 +288,6 @@ export function ProductForm({
     if (stockChanged.length > 0 && defaultLocationId) {
       try {
         const invData = await getVariantInventoryItems(stockChanged.map((v) => v.id!))
-        // Medusa returns inventory_items; each item may have variant_id via metadata
-        // We match by position: one inventory item per variant (Medusa default)
         const itemMap = new Map(invData.inventory_items.map((it) => [it.variant_id ?? "", it.id]))
         await Promise.all(
           stockChanged.map((v) => {
@@ -327,13 +323,7 @@ export function ProductForm({
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h1 className="text-xl font-bold flex-1 truncate">
-          {isError
-            ? "Ошибка"
-            : isLoading
-            ? "Загрузка..."
-            : isNew
-            ? "Новый товар"
-            : form.title || "Редактирование"}
+          {isError ? "Ошибка" : isLoading ? "Загрузка..." : isNew ? "Новый товар" : form.title || "Редактирование"}
         </h1>
         {!isError && (
           <button
@@ -360,9 +350,7 @@ export function ProductForm({
 
             {/* Basic info */}
             <section className="space-y-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Основное
-              </h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Основное</h2>
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Название</label>
@@ -373,7 +361,7 @@ export function ProductForm({
                     disabled={disabled}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">Статус</label>
                     <select
@@ -403,6 +391,17 @@ export function ProductForm({
                       ))}
                     </select>
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Цена ₽</label>
+                    <Input
+                      value={form.price}
+                      onChange={(e) => setField("price", e.target.value)}
+                      placeholder="0"
+                      type="number"
+                      min="0"
+                      disabled={disabled}
+                    />
+                  </div>
                 </div>
               </div>
             </section>
@@ -410,30 +409,17 @@ export function ProductForm({
             {/* Images */}
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Изображения
-                </h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Изображения</h2>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={disabled || uploading}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border hover:bg-accent transition-colors disabled:opacity-50"
                 >
-                  {uploading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="h-3.5 w-3.5" />
-                  )}
+                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                   Загрузить
                 </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
+                <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
               </div>
 
               {form.images.length === 0 ? (
@@ -507,29 +493,26 @@ export function ProductForm({
               </h2>
 
               <div className="border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-[1fr_100px_110px_80px_40px] gap-2 px-3 py-2 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
+                <div className="grid grid-cols-[1fr_140px_100px_40px] gap-2 px-3 py-2 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
                   <span>Название</span>
                   <span>Артикул</span>
-                  <span>Цена ₽</span>
                   <span>Склад</span>
                   <span />
                 </div>
 
                 {activeVariants.length === 0 ? (
-                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-                    Нет вариантов
-                  </div>
+                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">Нет вариантов</div>
                 ) : (
                   <div className="divide-y">
                     {activeVariants.map((v) => (
                       <div
                         key={v._key}
-                        className="grid grid-cols-[1fr_100px_110px_80px_40px] gap-2 px-3 py-2 items-center"
+                        className="grid grid-cols-[1fr_140px_100px_40px] gap-2 px-3 py-2 items-center"
                       >
                         <input
                           value={v.title}
                           onChange={(e) => patchVariant(v._key, "title", e.target.value)}
-                          placeholder="Название"
+                          placeholder="Название варианта"
                           disabled={disabled}
                           className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         />
@@ -537,15 +520,6 @@ export function ProductForm({
                           value={v.sku}
                           onChange={(e) => patchVariant(v._key, "sku", e.target.value)}
                           placeholder="Артикул"
-                          disabled={disabled}
-                          className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                        />
-                        <input
-                          value={v.price}
-                          onChange={(e) => patchVariant(v._key, "price", e.target.value)}
-                          placeholder="0"
-                          type="number"
-                          min="0"
                           disabled={disabled}
                           className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         />

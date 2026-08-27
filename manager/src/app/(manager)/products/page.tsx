@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Search, ChevronRight, Plus } from "lucide-react"
+import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { listProducts, type AdminProduct } from "@/lib/api"
+import { listProducts, updateProduct, updateVariant, type AdminProduct } from "@/lib/api"
+import { formatRub, rubles, toKopecks } from "@/lib/utils"
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
   published: { label: "Опубликован", variant: "success" },
@@ -19,7 +21,6 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
 
-  // Simple debounce
   function handleSearch(value: string) {
     setSearch(value)
     clearTimeout((window as any).__productSearchTimer)
@@ -83,7 +84,8 @@ export default function ProductsPage() {
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground w-12"></th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Товар</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Категория</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Варианты</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Вар.</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Цена</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Статус</th>
                     <th className="px-4 py-3 w-8"></th>
                   </tr>
@@ -100,10 +102,28 @@ export default function ProductsPage() {
   )
 }
 
+// ── Mobile card ───────────────────────────────────────────────────────────────
+
 function ProductRow({ product }: { product: AdminProduct }) {
   const router = useRouter()
+  const qc = useQueryClient()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
+
+  const rubPrices = product.variants?.flatMap((v) => v.prices ?? []).filter((p) => p.currency_code === "rub") ?? []
+  const minKopecks = rubPrices.length ? Math.min(...rubPrices.map((p) => p.amount)) : 0
+
+  async function cycleStatus(e: React.MouseEvent) {
+    e.stopPropagation()
+    const order = ["draft", "published", "rejected"]
+    const next = order[(order.indexOf(product.status) + 1) % order.length]
+    try {
+      await updateProduct(product.id, { status: next })
+      qc.invalidateQueries({ queryKey: ["products"] })
+    } catch {
+      toast.error("Не удалось обновить статус")
+    }
+  }
 
   return (
     <li
@@ -117,24 +137,80 @@ function ProductRow({ product }: { product: AdminProduct }) {
       )}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{product.title}</p>
-        <p className="text-xs text-muted-foreground">{category} · {product.variants?.length ?? 0} вар.</p>
+        <p className="text-xs text-muted-foreground">
+          {category} · {product.variants?.length ?? 0} вар. · {minKopecks ? formatRub(minKopecks) : "—"}
+        </p>
       </div>
-      <Badge variant={s.variant}>{s.label}</Badge>
+      <button type="button" onClick={cycleStatus} title="Сменить статус">
+        <Badge variant={s.variant}>{s.label}</Badge>
+      </button>
       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
     </li>
   )
 }
 
+// ── Desktop table row ─────────────────────────────────────────────────────────
+
 function ProductTableRow({ product }: { product: AdminProduct }) {
   const router = useRouter()
+  const qc = useQueryClient()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
+
+  const rubPrices = product.variants?.flatMap((v) => v.prices ?? []).filter((p) => p.currency_code === "rub") ?? []
+  const minKopecks = rubPrices.length ? Math.min(...rubPrices.map((p) => p.amount)) : 0
+
+  const [editingPrice, setEditingPrice] = useState(false)
+  const [priceVal, setPriceVal] = useState(() => rubles(minKopecks))
+  const [savingPrice, setSavingPrice] = useState(false)
+  const [savingStatus, setSavingStatus] = useState(false)
+
+  // keep input in sync when query refetches
+  useEffect(() => {
+    if (!editingPrice) setPriceVal(rubles(minKopecks))
+  }, [minKopecks, editingPrice])
+
+  async function savePrice() {
+    setEditingPrice(false)
+    const newKopecks = toKopecks(priceVal)
+    if (newKopecks === minKopecks) return
+    setSavingPrice(true)
+    try {
+      await Promise.all(
+        (product.variants ?? []).map((v) => {
+          const existingRubPrice = v.prices?.find((p) => p.currency_code === "rub")
+          return updateVariant(product.id, v.id, {
+            prices: [{ id: existingRubPrice?.id, currency_code: "rub", amount: newKopecks }],
+          })
+        })
+      )
+      qc.invalidateQueries({ queryKey: ["products"] })
+    } catch {
+      toast.error("Не удалось обновить цену")
+      setPriceVal(rubles(minKopecks))
+    } finally {
+      setSavingPrice(false)
+    }
+  }
+
+  async function saveStatus(newStatus: string) {
+    setSavingStatus(true)
+    try {
+      await updateProduct(product.id, { status: newStatus })
+      qc.invalidateQueries({ queryKey: ["products"] })
+    } catch {
+      toast.error("Не удалось обновить статус")
+    } finally {
+      setSavingStatus(false)
+    }
+  }
 
   return (
     <tr
       className="hover:bg-accent/50 transition-colors cursor-pointer"
       onClick={() => router.push(`/products/${product.id}`)}
     >
+      {/* Thumbnail */}
       <td className="px-4 py-3">
         {product.thumbnail ? (
           <img src={product.thumbnail} alt="" className="h-10 w-10 rounded object-cover" />
@@ -142,10 +218,57 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
           <div className="h-10 w-10 rounded bg-muted" />
         )}
       </td>
+
+      {/* Title */}
       <td className="px-4 py-3 font-medium">{product.title}</td>
+
+      {/* Category */}
       <td className="px-4 py-3 text-muted-foreground">{category}</td>
-      <td className="px-4 py-3 text-muted-foreground">{product.variants?.length ?? 0} вар.</td>
-      <td className="px-4 py-3"><Badge variant={s.variant}>{s.label}</Badge></td>
+
+      {/* Variants count */}
+      <td className="px-4 py-3 text-muted-foreground">{product.variants?.length ?? 0}</td>
+
+      {/* Price — click cell to edit */}
+      <td
+        className="px-4 py-3"
+        onClick={(e) => { e.stopPropagation(); if (!savingPrice) setEditingPrice(true) }}
+      >
+        {editingPrice ? (
+          <input
+            autoFocus
+            type="number"
+            min="0"
+            value={priceVal}
+            onChange={(e) => setPriceVal(e.target.value)}
+            onBlur={savePrice}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur()
+              if (e.key === "Escape") { setEditingPrice(false); setPriceVal(rubles(minKopecks)) }
+            }}
+            className="h-7 w-24 rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        ) : (
+          <span className={`text-sm ${savingPrice ? "opacity-40" : "hover:underline underline-offset-2 cursor-text"}`}>
+            {minKopecks ? formatRub(minKopecks) : <span className="text-muted-foreground">—</span>}
+          </span>
+        )}
+      </td>
+
+      {/* Status — select dropdown */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <select
+          value={product.status}
+          disabled={savingStatus}
+          onChange={(e) => saveStatus(e.target.value)}
+          className="text-xs rounded border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-40 cursor-pointer"
+        >
+          <option value="draft">Черновик</option>
+          <option value="published">Опубликован</option>
+          <option value="rejected">Отклонён</option>
+        </select>
+      </td>
+
+      {/* Navigate */}
       <td className="px-4 py-3">
         <ChevronRight className="h-4 w-4 text-muted-foreground" />
       </td>

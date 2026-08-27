@@ -58,6 +58,7 @@ module.exports = {
         "3xl": "2rem",
       },
       fontFamily: {
+        display: ["var(--font-unbounded)", "sans-serif"],
         sans: [
           "Inter",
           "-apple-system",
@@ -139,6 +140,18 @@ module.exports = {
           "0%": { transform: "translateY(-100%)" },
           "100%": { transform: "translateY(0)" },
         },
+        progress: {
+          "0%": { width: "0%" },
+          "100%": { width: "100%" },
+        },
+        "ken-burns": {
+          "0%": { transform: "scale(1) translate(0, 0)" },
+          "100%": { transform: "scale(1.08) translate(-1%, -1%)" },
+        },
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(16px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         ring: "ring 2.2s cubic-bezier(0.5, 0, 0.5, 1) infinite",
@@ -154,6 +167,9 @@ module.exports = {
         enter: "enter 200ms ease-out",
         "slide-in": "slide-in 1.2s cubic-bezier(.41,.73,.51,1.02)",
         leave: "leave 150ms ease-in forwards",
+        progress: "progress 15s linear forwards",
+        "ken-burns": "ken-burns 7s ease-in-out forwards",
+        "fade-up": "fade-up 0.7s ease-out forwards",
       },
     },
   },
