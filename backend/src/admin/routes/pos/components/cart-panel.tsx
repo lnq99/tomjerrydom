@@ -1,16 +1,18 @@
-import { Button, Heading, Text, IconButton, toast } from '@medusajs/ui'
-import { Minus, Plus, Trash } from '@medusajs/icons'
+import { useState } from 'react'
+import { Button, Heading, Text, IconButton, Input, toast } from '@medusajs/ui'
+import { Minus, Plus, Trash, PencilSquare } from '@medusajs/icons'
 import type { PosCart, PosLineItem } from '../../../../modules/pos-logic'
 
 type Props = {
   cart: PosCart
   total: number
   onUpdateQty: (variantId: string, quantity: number) => void
+  onUpdatePrice: (variantId: string, unitPrice: number) => void
   onRemove: (variantId: string) => void
   onClear: () => void
 }
 
-export function CartPanel({ cart, total, onUpdateQty, onRemove, onClear }: Props) {
+export function CartPanel({ cart, total, onUpdateQty, onUpdatePrice, onRemove, onClear }: Props) {
   const formattedTotal = new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: 'RUB',
@@ -42,6 +44,7 @@ export function CartPanel({ cart, total, onUpdateQty, onRemove, onClear }: Props
                 key={item.variantId}
                 item={item}
                 onUpdateQty={onUpdateQty}
+                onUpdatePrice={onUpdatePrice}
                 onRemove={onRemove}
               />
             ))}
@@ -81,56 +84,112 @@ export function CartPanel({ cart, total, onUpdateQty, onRemove, onClear }: Props
 function CartItem({
   item,
   onUpdateQty,
+  onUpdatePrice,
   onRemove,
 }: {
   item: PosLineItem
   onUpdateQty: (variantId: string, quantity: number) => void
+  onUpdatePrice: (variantId: string, unitPrice: number) => void
   onRemove: (variantId: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [priceInput, setPriceInput] = useState('')
+
   const lineTotal = new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: 'RUB',
     maximumFractionDigits: 0,
   }).format((item.unitPrice * item.quantity) / 100)
 
+  const unitFormatted = new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    maximumFractionDigits: 0,
+  }).format(item.unitPrice / 100)
+
+  function startEditing() {
+    setPriceInput(String(Math.round(item.unitPrice / 100)))
+    setEditing(true)
+  }
+
+  function commitPrice() {
+    const rubles = parseFloat(priceInput.replace(',', '.'))
+    if (!isNaN(rubles) && rubles >= 0) {
+      onUpdatePrice(item.variantId, Math.round(rubles * 100))
+    }
+    setEditing(false)
+  }
+
+  function handlePriceKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') commitPrice()
+    if (e.key === 'Escape') setEditing(false)
+  }
+
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <div className="flex-1 overflow-hidden">
-        <Text size="small" weight="plus" className="truncate">
-          {item.variantId}
-        </Text>
-        <Text size="xsmall" className="text-ui-fg-muted">
-          {lineTotal}
-        </Text>
-      </div>
+    <li className="flex flex-col gap-1 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="flex-1 overflow-hidden">
+          <Text size="small" weight="plus" className="truncate">
+            {item.variantId}
+          </Text>
+        </div>
 
-      <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1">
+          <IconButton
+            size="small"
+            variant="transparent"
+            onClick={() => onUpdateQty(item.variantId, item.quantity - 1)}
+          >
+            <Minus />
+          </IconButton>
+          <Text className="w-6 text-center" size="small">
+            {item.quantity}
+          </Text>
+          <IconButton
+            size="small"
+            variant="transparent"
+            onClick={() => onUpdateQty(item.variantId, item.quantity + 1)}
+          >
+            <Plus />
+          </IconButton>
+        </div>
+
         <IconButton
           size="small"
           variant="transparent"
-          onClick={() => onUpdateQty(item.variantId, item.quantity - 1)}
+          onClick={() => onRemove(item.variantId)}
         >
-          <Minus />
-        </IconButton>
-        <Text className="w-6 text-center" size="small">
-          {item.quantity}
-        </Text>
-        <IconButton
-          size="small"
-          variant="transparent"
-          onClick={() => onUpdateQty(item.variantId, item.quantity + 1)}
-        >
-          <Plus />
+          <Trash />
         </IconButton>
       </div>
 
-      <IconButton
-        size="small"
-        variant="transparent"
-        onClick={() => onRemove(item.variantId)}
-      >
-        <Trash />
-      </IconButton>
+      {/* Price row */}
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <Input
+            autoFocus
+            type="number"
+            min={0}
+            className="h-7 w-28 text-sm"
+            value={priceInput}
+            onChange={(e) => setPriceInput(e.target.value)}
+            onBlur={commitPrice}
+            onKeyDown={handlePriceKeyDown}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={startEditing}
+            className="flex items-center gap-1 group"
+            title="Изменить цену"
+          >
+            <Text size="xsmall" className="text-ui-fg-muted">
+              {item.quantity > 1 ? `${unitFormatted} × ${item.quantity} = ` : ''}{lineTotal}
+            </Text>
+            <PencilSquare className="text-ui-fg-muted opacity-0 group-hover:opacity-100 transition-opacity w-3 h-3" />
+          </button>
+        )}
+      </div>
     </li>
   )
 }

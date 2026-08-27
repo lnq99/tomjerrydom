@@ -6,6 +6,7 @@ import {
   addItem,
   removeItem,
   updateQuantity,
+  updatePrice,
   cartTotal,
 } from '../../../../modules/pos-logic'
 
@@ -13,6 +14,7 @@ type Action =
   | { type: 'ADD_ITEM'; item: PosLineItem }
   | { type: 'REMOVE_ITEM'; variantId: string }
   | { type: 'UPDATE_QTY'; variantId: string; quantity: number }
+  | { type: 'UPDATE_PRICE'; variantId: string; unitPrice: number }
   | { type: 'CLEAR' }
 
 function reducer(state: PosCart, action: Action): PosCart {
@@ -23,6 +25,8 @@ function reducer(state: PosCart, action: Action): PosCart {
       return removeItem(state, action.variantId)
     case 'UPDATE_QTY':
       return updateQuantity(state, action.variantId, action.quantity)
+    case 'UPDATE_PRICE':
+      return updatePrice(state, action.variantId, action.unitPrice)
     case 'CLEAR':
       return createCart(state.regionId, state.currencyCode)
   }
@@ -45,9 +49,13 @@ export function usePosCart() {
     dispatch({ type: 'UPDATE_QTY', variantId, quantity })
   }, [])
 
+  const setPrice = useCallback((variantId: string, unitPrice: number) => {
+    dispatch({ type: 'UPDATE_PRICE', variantId, unitPrice })
+  }, [])
+
   const clear = useCallback(() => {
     dispatch({ type: 'CLEAR' })
   }, [])
 
-  return { cart, total: cartTotal(cart), add, remove, setQty, clear }
+  return { cart, total: cartTotal(cart), add, remove, setQty, setPrice, clear }
 }

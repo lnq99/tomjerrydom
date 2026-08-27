@@ -37,6 +37,15 @@ export function updateQuantity(
   }
 }
 
+export function updatePrice(cart: PosCart, variantId: string, unitPrice: number): PosCart {
+  return {
+    ...cart,
+    items: cart.items.map((i) =>
+      i.variantId === variantId ? { ...i, unitPrice: Math.max(0, unitPrice) } : i
+    ),
+  }
+}
+
 export function cartTotal(cart: PosCart): number {
   return cart.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0)
 }

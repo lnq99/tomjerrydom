@@ -12,7 +12,7 @@ export const config = defineRouteConfig({
 })
 
 export default function PosPage() {
-  const { cart, total, add, remove, setQty, clear } = usePosCart()
+  const { cart, total, add, remove, setQty, setPrice, clear } = usePosCart()
   const [activeTab, setActiveTab] = useState<'products' | 'cart'>('products')
 
   const cartCount = cart.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -31,6 +31,7 @@ export default function PosPage() {
           cart={cart}
           total={total}
           onUpdateQty={setQty}
+          onUpdatePrice={setPrice}
           onRemove={remove}
           onClear={clear}
         />

@@ -10,7 +10,6 @@ export type Tier = {
   description: string
   /** kopecks */
   min_order_amount: number
-  price_list_id: string | null
   sort_order: number
 }
 
@@ -37,7 +36,6 @@ export async function listTiers(): Promise<Tier[]> {
         label: "Розница",
         description: "Стандартные цены",
         min_order_amount: 0,
-        price_list_id: null,
         sort_order: 0,
       },
     ]

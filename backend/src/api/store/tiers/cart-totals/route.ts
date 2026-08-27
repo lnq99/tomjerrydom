@@ -1,29 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { deriveTierKey, getTierProfit, calcPrice, DEFAULT_TIER_PROFIT } from "../_shared"
 
 type CartTotalsBody = { cart_id: string }
-
-type VariantPriceEntry = {
-  id: string
-  price_set: {
-    prices: { amount: number; currency_code: string; price_list_id: string | null }[]
-  } | null
-}
-
-function pickPrice(
-  variant: VariantPriceEntry,
-  tierId: string,
-  currencyCode: string
-): number | null {
-  const prices = variant.price_set?.prices ?? []
-  const isRetail = tierId === "retail"
-  const match = prices.find(
-    (p) =>
-      p.currency_code.toLowerCase() === currencyCode.toLowerCase() &&
-      (isRetail ? p.price_list_id == null : p.price_list_id === tierId)
-  )
-  return match?.amount ?? null
-}
 
 export async function POST(
   req: MedusaRequest<CartTotalsBody>,
@@ -38,10 +17,9 @@ export async function POST(
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const pricingService = req.scope.resolve(Modules.PRICING)
 
-  // Load cart items
   const { data: [cart] } = await query.graph({
     entity: "cart",
-    fields: ["id", "currency_code", "items.variant_id", "items.quantity"],
+    fields: ["id", "items.variant_id", "items.quantity"],
     filters: { id: [cart_id] },
   })
 
@@ -50,70 +28,60 @@ export async function POST(
   }
 
   const items = (cart as any).items ?? []
-  const currencyCode = (cart as any).currency_code ?? "rub"
   const variantIds: string[] = items.map((i: any) => i.variant_id).filter(Boolean)
 
-  if (variantIds.length === 0) {
-    return res.json({ note: "item subtotal only — excludes shipping and tax", tiers: [] })
-  }
-
-  // Fetch variant prices (all price lists)
-  const { data: variants } = await query.graph({
-    entity: "product_variant",
-    fields: [
-      "id",
-      "price_set.prices.amount",
-      "price_set.prices.currency_code",
-      "price_set.prices.price_list_id",
-    ],
-    filters: { id: variantIds },
-  }) as { data: VariantPriceEntry[] }
-
-  const variantPriceMap = new Map<string, VariantPriceEntry>(
-    variants.map((v) => [v.id, v])
-  )
-
-  // Fetch all active tier price lists
+  // Fetch tier list
   const priceLists = await pricingService.listPriceLists(
     { status: ["active"] },
     { select: ["id", "title", "metadata"] }
   )
 
-  const tierLists = [
-    { id: "retail", label: "Розница", min_order_amount: 0, price_list_id: null as string | null, sort_order: 0 },
+  const tierDefs = [
+    { id: "retail", label: "Розница", min_order_amount: 0, sort_order: 0 },
     ...priceLists
       .filter((pl) => pl.metadata?.is_tier === true)
       .map((pl) => ({
-        id: pl.id,
+        id: deriveTierKey(pl.metadata as Record<string, unknown>),
         label: (pl.metadata?.label as string) ?? pl.title,
         min_order_amount: ((pl.metadata?.min_order_amount as number) ?? 0) * 100,
-        price_list_id: pl.id as string | null,
         sort_order: (pl.metadata?.sort_order as number) ?? 99,
       }))
       .sort((a, b) => a.sort_order - b.sort_order),
   ]
 
-  // Calculate subtotal per tier
-  const tierTotals = tierLists.map((tier) => {
-    let subtotal = 0
-    for (const item of items) {
-      const variant = variantPriceMap.get(item.variant_id)
-      if (!variant) continue
-      const price = pickPrice(variant, tier.id, currencyCode)
-      if (price !== null) {
-        subtotal += price * item.quantity
-      }
-    }
-    return {
-      id: tier.id,
-      label: tier.label,
-      min_order_amount: tier.min_order_amount,
-      subtotal,
-    }
+  if (variantIds.length === 0) {
+    return res.json({
+      note: "item subtotal only — excludes shipping and tax",
+      tiers: tierDefs.map((t) => ({ ...t, subtotal: 0 })),
+    })
+  }
+
+  // Fetch variants with capital + category profit config
+  const { data: variants } = await query.graph({
+    entity: "product_variant",
+    fields: [
+      "id",
+      "product.metadata",
+      "product.categories.metadata",
+    ],
+    filters: { id: variantIds },
   })
 
-  res.json({
-    note: "item subtotal only — excludes shipping and tax",
-    tiers: tierTotals,
+  const variantMap = new Map<string, any>(variants.map((v: any) => [v.id, v]))
+
+  const tierTotals = tierDefs.map((tier) => {
+    let subtotal = 0
+    for (const item of items) {
+      const variant = variantMap.get(item.variant_id)
+      if (!variant) continue
+      const capital: number = (variant.product?.metadata as any)?.capital
+      if (!capital) continue
+      const categories = variant.product?.categories ?? []
+      const profit = getTierProfit(categories, tier.id)
+      subtotal += calcPrice(capital, profit) * item.quantity
+    }
+    return { id: tier.id, label: tier.label, min_order_amount: tier.min_order_amount, subtotal }
   })
+
+  res.json({ note: "item subtotal only — excludes shipping and tax", tiers: tierTotals })
 }

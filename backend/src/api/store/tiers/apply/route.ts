@@ -1,33 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { getTierProfit, calcPrice } from "../_shared"
 
 type ApplyBody = {
   cart_id: string
-  tier_id: string // "retail" or a price list ID
-}
-
-type VariantPriceEntry = {
-  id: string
-  price_set: {
-    prices: { amount: number; currency_code: string; price_list_id: string | null }[]
-  } | null
-}
-
-function pickPrice(
-  variant: VariantPriceEntry,
-  tierId: string,
-  currencyCode: string
-): number | null {
-  const prices = variant.price_set?.prices ?? []
-  const isRetail = tierId === "retail"
-
-  const match = prices.find(
-    (p) =>
-      p.currency_code.toLowerCase() === currencyCode.toLowerCase() &&
-      (isRetail ? p.price_list_id == null : p.price_list_id === tierId)
-  )
-
-  return match?.amount ?? null
+  tier_id: string // "retail" | "wholesale20" | "wholesale50"
 }
 
 export async function POST(
@@ -46,7 +23,7 @@ export async function POST(
   // Load cart with line items
   const { data: [cart] } = await query.graph({
     entity: "cart",
-    fields: ["id", "currency_code", "items.id", "items.variant_id", "items.quantity"],
+    fields: ["id", "items.id", "items.variant_id", "items.quantity"],
     filters: { id: [cart_id] },
   })
 
@@ -55,49 +32,44 @@ export async function POST(
   }
 
   const items = (cart as any).items ?? []
-  const variantIds: string[] = items
-    .map((i: any) => i.variant_id)
-    .filter(Boolean)
+  const variantIds: string[] = items.map((i: any) => i.variant_id).filter(Boolean)
 
   if (variantIds.length === 0) {
     return res.json({ cart })
   }
 
-  // Fetch variant → price_set → prices
+  // Fetch variants with product capital + category profit config
   const { data: variants } = await query.graph({
     entity: "product_variant",
     fields: [
       "id",
-      "price_set.prices.amount",
-      "price_set.prices.currency_code",
-      "price_set.prices.price_list_id",
+      "product.metadata",
+      "product.categories.metadata",
     ],
     filters: { id: variantIds },
-  }) as { data: VariantPriceEntry[] }
+  })
 
-  const variantPriceMap = new Map<string, VariantPriceEntry>(
-    variants.map((v) => [v.id, v])
-  )
+  const variantMap = new Map<string, any>(variants.map((v: any) => [v.id, v]))
 
-  const currencyCode = (cart as any).currency_code ?? "rub"
-
-  // Build updates: one per line item that has a price at the target tier
   const updates: { id: string; unit_price: number }[] = []
   for (const item of items) {
-    const variant = variantPriceMap.get(item.variant_id)
+    const variant = variantMap.get(item.variant_id)
     if (!variant) continue
-    const price = pickPrice(variant, tier_id, currencyCode)
-    if (price !== null) {
-      updates.push({ id: item.id, unit_price: price })
-    }
+
+    const capital: number = (variant.product?.metadata as any)?.capital
+    if (!capital) continue
+
+    const categories = variant.product?.categories ?? []
+    const profit = getTierProfit(categories, tier_id)
+    const price = calcPrice(capital, profit)
+
+    updates.push({ id: item.id, unit_price: price })
   }
 
-  // Apply unit_price updates via cart module service
   if (updates.length > 0) {
     await cartService.updateLineItems(updates)
   }
 
-  // Return the refreshed cart
   const { data: [updatedCart] } = await query.graph({
     entity: "cart",
     fields: [
