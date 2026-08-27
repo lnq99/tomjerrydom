@@ -234,16 +234,18 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
 // ── Product card (grid view) ──────────────────────────────────────────────────
 
 function ProductCard({
-  product, tiers, tierId, tierPrice, cost, onTap,
+  product, tiers, tierId, tierPrice, cost, allPrices, onTap,
 }: {
   product: AdminProduct
   tiers: Tier[]
   tierId: string
   tierPrice: number
   cost: number
+  allPrices: Record<string, number>
   onTap: (p: AdminProduct) => void
 }) {
   const variantCount = product.variants?.length ?? 0
+  const otherTiers = tiers.filter((t) => t.id !== tierId)
 
   return (
     <button
@@ -256,28 +258,32 @@ function ProductCard({
       ) : (
         <div className="aspect-square w-full bg-muted" />
       )}
-      <div className="flex flex-col gap-1 p-2">
+      <div className="flex flex-col gap-0.5 p-2">
         <span className="text-xs font-medium line-clamp-2 leading-snug">{product.title}</span>
         {variantCount > 1 && (
           <span className="text-[10px] text-muted-foreground">{variantCount} вар. →</span>
         )}
-        {/* Selected tier price */}
+        {/* Selected tier price — prominent */}
         {tierPrice ? (
-          <span className="text-sm font-bold">{formatRub(tierPrice)}</span>
+          <span className="text-sm font-bold mt-0.5">{formatRub(tierPrice)}</span>
         ) : (
-          <span className="text-xs text-muted-foreground">нет цены</span>
+          <span className="text-xs text-muted-foreground mt-0.5">нет цены</span>
         )}
         {/* Cost */}
         {cost > 0 && (
           <span className="text-[10px] text-muted-foreground">себ. {formatRub(cost)}</span>
         )}
-        {/* All tier prices (compact row) */}
-        {tiers.length > 1 && (
-          <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-            {tiers.filter((t) => t.id !== tierId).map((t) => {
-              const p = product ? undefined : undefined // placeholder — prices passed via props
-              return null // rendered below
-            })}
+        {/* Other tier prices */}
+        {otherTiers.length > 0 && (
+          <div className="mt-1 flex flex-col gap-0.5 border-t pt-1">
+            {otherTiers.map((t) => (
+              <div key={t.id} className="flex justify-between items-center">
+                <span className="text-[10px] text-muted-foreground truncate">{t.label}</span>
+                <span className="text-[10px] text-muted-foreground ml-1 shrink-0">
+                  {allPrices[t.id] ? formatRub(allPrices[t.id]) : "—"}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
