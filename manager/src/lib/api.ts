@@ -64,6 +64,7 @@ export type AdminProduct = {
   metadata: Record<string, unknown> | null
   categories: { id: string; name: string }[]
   variants: AdminVariant[]
+  images: { id: string; url: string }[]
 }
 
 export type AdminVariant = {
@@ -72,6 +73,8 @@ export type AdminVariant = {
   sku: string | null
   prices: { id: string; amount: number; currency_code: string }[]
   inventory_quantity?: number
+  manage_inventory?: boolean
+  inventory_items?: { id: string; inventory_item_id: string }[]
 }
 
 export async function listProducts(params?: {
@@ -90,14 +93,120 @@ export async function listProducts(params?: {
 }
 
 export async function getProduct(id: string): Promise<{ product: AdminProduct }> {
-  return apiFetch(`/admin/products/${id}?fields=id,title,thumbnail,status,metadata,*variants,*categories`)
+  return apiFetch(
+    `/admin/products/${id}?fields=id,title,thumbnail,status,metadata,*variants,*categories,*images`
+  )
+}
+
+export async function getVariantInventoryItems(
+  variantIds: string[]
+): Promise<{ inventory_items: { id: string; variant_id?: string }[] }> {
+  const qs = new URLSearchParams()
+  variantIds.forEach((id) => qs.append("variant_id[]", id))
+  qs.set("fields", "id")
+  return apiFetch(`/admin/inventory-items?${qs}`)
 }
 
 export async function updateProduct(
   id: string,
-  data: Partial<{ title: string; metadata: Record<string, unknown>; status: string }>
+  data: Partial<{
+    title: string
+    status: string
+    metadata: Record<string, unknown>
+    categories: { id: string }[]
+    images: { url: string }[]
+    thumbnail: string | null
+  }>
 ): Promise<{ product: AdminProduct }> {
   return apiFetch(`/admin/products/${id}`, { method: "POST", body: JSON.stringify(data) })
+}
+
+export type CreateProductInput = {
+  title: string
+  status: string
+  categories?: { id: string }[]
+  images?: { url: string }[]
+  thumbnail?: string | null
+  variants?: {
+    title: string
+    sku?: string
+    manage_inventory?: boolean
+    prices?: { currency_code: string; amount: number }[]
+  }[]
+}
+
+export async function createProduct(data: CreateProductInput): Promise<{ product: AdminProduct }> {
+  return apiFetch("/admin/products", { method: "POST", body: JSON.stringify(data) })
+}
+
+export async function updateVariant(
+  productId: string,
+  variantId: string,
+  data: { title?: string; sku?: string; prices?: { currency_code: string; amount: number }[] }
+): Promise<void> {
+  await apiFetch(`/admin/products/${productId}/variants/${variantId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
+export async function createVariant(
+  productId: string,
+  data: { title: string; sku?: string; manage_inventory?: boolean; prices?: { currency_code: string; amount: number }[] }
+): Promise<void> {
+  await apiFetch(`/admin/products/${productId}/variants`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteVariant(productId: string, variantId: string): Promise<void> {
+  await apiFetch(`/admin/products/${productId}/variants/${variantId}`, { method: "DELETE" })
+}
+
+export async function uploadFile(file: File): Promise<{ url: string }> {
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  const formData = new FormData()
+  formData.append("files", file)
+  const res = await fetch(`${BACKEND_URL}/admin/uploads`, {
+    method: "POST",
+    headers,
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }))
+    throw new ApiError(res.status, err.message ?? res.statusText)
+  }
+  const data = await res.json()
+  return { url: data.files[0].url }
+}
+
+export type StockLocation = { id: string; name: string }
+
+export async function listStockLocations(): Promise<{ stock_locations: StockLocation[] }> {
+  return apiFetch("/admin/stock-locations?limit=20")
+}
+
+export async function setInventoryLevel(
+  inventoryItemId: string,
+  locationId: string,
+  stockedQuantity: number
+): Promise<void> {
+  try {
+    await apiFetch(`/admin/inventory-items/${inventoryItemId}/location-levels/${locationId}`, {
+      method: "POST",
+      body: JSON.stringify({ stocked_quantity: stockedQuantity }),
+    })
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) {
+      await apiFetch(`/admin/inventory-items/${inventoryItemId}/location-levels`, {
+        method: "POST",
+        body: JSON.stringify({ location_id: locationId, stocked_quantity: stockedQuantity }),
+      })
+    } else throw e
+  }
 }
 
 // ── Product Categories ───────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Search, ChevronRight } from "lucide-react"
+import { Search, ChevronRight, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { listProducts, type AdminProduct } from "@/lib/api"
@@ -15,6 +15,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondar
 }
 
 export default function ProductsPage() {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
 
@@ -39,7 +40,17 @@ export default function ProductsPage() {
       <div className="border-b px-4 py-3 space-y-3">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Товары</h1>
-          <span className="text-sm text-muted-foreground">{count} шт.</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">{count} шт.</span>
+            <button
+              type="button"
+              onClick={() => router.push("/products/new")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Создать</span>
+            </button>
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
