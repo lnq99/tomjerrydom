@@ -2,14 +2,15 @@
 
 import { useState, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Search, LayoutGrid, List } from "lucide-react"
+import { Search, LayoutGrid, List, Minus, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { listProducts, type AdminProduct, type AdminVariant, type PricingConfig } from "@/lib/api"
 import { formatRub, cn } from "@/lib/utils"
 import type { LineItem } from "@/lib/cart"
 
-type Tier = { id: string; label: string }
+type Tier = { id: string; label: string; min_order_amount: number }
 type PricedProduct = {
   id: string
   title: string
@@ -25,6 +26,14 @@ type Props = {
   onAddItem: (item: LineItem) => void
 }
 
+/** "Оптом от 20 000 ₽" → "Опт 20к", retail stays as-is */
+function shortLabel(tier: Tier): string {
+  if (tier.min_order_amount === 0) return tier.label
+  const rubles = tier.min_order_amount / 100
+  const k = rubles >= 1000 ? `${Math.round(rubles / 1000)}к` : String(rubles)
+  return `Опт ${k}`
+}
+
 export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) {
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"cards" | "list">("cards")
@@ -38,12 +47,9 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
 
   const products = data?.products ?? []
 
-  // Build price map: productId → { cost, calculated_prices }
   const priceMap = useMemo<Map<string, PricedProduct>>(() => {
     const map = new Map<string, PricedProduct>()
-    for (const p of pricingData?.products ?? []) {
-      map.set(p.id, p)
-    }
+    for (const p of pricingData?.products ?? []) map.set(p.id, p)
     return map
   }, [pricingData])
 
@@ -55,21 +61,21 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
     return priceMap.get(productId)?.cost ?? 0
   }
 
-  function addProduct(product: AdminProduct, variant: AdminVariant) {
+  function addVariant(product: AdminProduct, variant: AdminVariant, qty = 1) {
     onAddItem({
       variantId: variant.id,
       variantTitle: variant.title,
       productTitle: product.title,
       thumbnail: product.thumbnail,
       unitPrice: tierPrice(product.id),
-      quantity: 1,
+      quantity: qty,
     })
   }
 
   function handleTap(product: AdminProduct) {
     const variants = product.variants ?? []
     if (variants.length <= 1) {
-      addProduct(product, variants[0] ?? { id: product.id, title: product.title, sku: null, prices: [] })
+      addVariant(product, variants[0] ?? { id: product.id, title: product.title, sku: null, prices: [] })
     } else {
       setPickerProduct(product)
     }
@@ -120,42 +126,41 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Ничего не найдено</div>
       )}
 
-      {/* Cards view */}
+      {/* Cards */}
       {!isLoading && view === "cards" && products.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 flex-1 overflow-y-auto content-start">
-          {products.map((product) => (
+          {products.map((p) => (
             <ProductCard
-              key={product.id}
-              product={product}
+              key={p.id}
+              product={p}
               tiers={tiers}
               tierId={tierId}
-              tierPrice={tierPrice(product.id)}
-              cost={productCost(product.id)}
-              allPrices={priceMap.get(product.id)?.calculated_prices ?? {}}
+              tierPrice={tierPrice(p.id)}
+              cost={productCost(p.id)}
+              allPrices={priceMap.get(p.id)?.calculated_prices ?? {}}
               onTap={handleTap}
             />
           ))}
         </div>
       )}
 
-      {/* List view */}
+      {/* List */}
       {!isLoading && view === "list" && products.length > 0 && (
         <div className="flex-1 overflow-y-auto rounded-lg border">
-          {/* Header */}
-          <div className="grid border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sticky top-0"
-            style={{ gridTemplateColumns: `auto 1fr 80px ${tiers.map(() => "80px").join(" ")} 36px` }}
+          <div
+            className="grid border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sticky top-0"
+            style={{ gridTemplateColumns: `auto 1fr 80px ${tiers.map(() => "72px").join(" ")} 36px` }}
           >
             <div className="w-9 mr-3" />
             <div>Товар</div>
             <div className="text-right">Себест.</div>
             {tiers.map((t) => (
               <div key={t.id} className={cn("text-right", t.id === tierId ? "text-primary font-semibold" : "")}>
-                {t.label}
+                {shortLabel(t)}
               </div>
             ))}
             <div />
           </div>
-
           {products.map((product) => {
             const priced = priceMap.get(product.id)
             const cost = priced?.cost ?? 0
@@ -167,44 +172,23 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
                 type="button"
                 onClick={() => handleTap(product)}
                 className="w-full grid items-center px-3 py-2 border-b last:border-b-0 hover:bg-accent transition-colors text-left"
-                style={{ gridTemplateColumns: `auto 1fr 80px ${tiers.map(() => "80px").join(" ")} 36px` }}
+                style={{ gridTemplateColumns: `auto 1fr 80px ${tiers.map(() => "72px").join(" ")} 36px` }}
               >
-                {/* Thumbnail */}
                 <div className="mr-3">
-                  {product.thumbnail ? (
-                    <img src={product.thumbnail} alt="" className="h-9 w-9 rounded object-cover shrink-0" />
-                  ) : (
-                    <div className="h-9 w-9 rounded bg-muted shrink-0" />
-                  )}
+                  {product.thumbnail
+                    ? <img src={product.thumbnail} alt="" className="h-9 w-9 rounded object-cover shrink-0" />
+                    : <div className="h-9 w-9 rounded bg-muted shrink-0" />}
                 </div>
-
-                {/* Title */}
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{product.title}</p>
-                  {variantCount > 1 && (
-                    <p className="text-xs text-muted-foreground">{variantCount} вар.</p>
-                  )}
+                  {variantCount > 1 && <p className="text-xs text-muted-foreground">{variantCount} вар.</p>}
                 </div>
-
-                {/* Cost */}
-                <div className="text-right text-xs text-muted-foreground">
-                  {cost ? formatRub(cost) : "—"}
-                </div>
-
-                {/* Tier prices */}
+                <div className="text-right text-xs text-muted-foreground">{cost ? formatRub(cost) : "—"}</div>
                 {tiers.map((t) => (
-                  <div
-                    key={t.id}
-                    className={cn(
-                      "text-right text-sm",
-                      t.id === tierId ? "font-semibold text-foreground" : "text-muted-foreground"
-                    )}
-                  >
+                  <div key={t.id} className={cn("text-right text-sm", t.id === tierId ? "font-semibold" : "text-muted-foreground")}>
                     {calcPrices[t.id] ? formatRub(calcPrices[t.id]) : "—"}
                   </div>
                 ))}
-
-                {/* Add indicator */}
                 <div className="flex items-center justify-center">
                   <span className="text-xs text-muted-foreground">→</span>
                 </div>
@@ -217,11 +201,9 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
       {pickerProduct && (
         <VariantPicker
           product={pickerProduct}
-          tiers={tiers}
-          tierId={tierId}
-          priceMap={priceMap}
-          onPick={(variant) => {
-            addProduct(pickerProduct, variant)
+          tierPrice={tierPrice(pickerProduct.id)}
+          onConfirm={(picks) => {
+            picks.forEach(({ variant, qty }) => addVariant(pickerProduct, variant, qty))
             setPickerProduct(null)
           }}
           onClose={() => setPickerProduct(null)}
@@ -231,11 +213,9 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
   )
 }
 
-// ── Product card (grid view) ──────────────────────────────────────────────────
+// ── Product card ──────────────────────────────────────────────────────────────
 
-function ProductCard({
-  product, tiers, tierId, tierPrice, cost, allPrices, onTap,
-}: {
+function ProductCard({ product, tiers, tierId, tierPrice, cost, allPrices, onTap }: {
   product: AdminProduct
   tiers: Tier[]
   tierId: string
@@ -253,32 +233,21 @@ function ProductCard({
       onClick={() => onTap(product)}
       className="flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors hover:bg-accent active:scale-95"
     >
-      {product.thumbnail ? (
-        <img src={product.thumbnail} alt={product.title} className="aspect-square w-full object-cover" />
-      ) : (
-        <div className="aspect-square w-full bg-muted" />
-      )}
+      {product.thumbnail
+        ? <img src={product.thumbnail} alt={product.title} className="aspect-square w-full object-cover" />
+        : <div className="aspect-square w-full bg-muted" />}
       <div className="flex flex-col gap-0.5 p-2">
         <span className="text-xs font-medium line-clamp-2 leading-snug">{product.title}</span>
-        {variantCount > 1 && (
-          <span className="text-[10px] text-muted-foreground">{variantCount} вар. →</span>
-        )}
-        {/* Selected tier price — prominent */}
-        {tierPrice ? (
-          <span className="text-sm font-bold mt-0.5">{formatRub(tierPrice)}</span>
-        ) : (
-          <span className="text-xs text-muted-foreground mt-0.5">нет цены</span>
-        )}
-        {/* Cost */}
-        {cost > 0 && (
-          <span className="text-[10px] text-muted-foreground">себ. {formatRub(cost)}</span>
-        )}
-        {/* Other tier prices */}
+        {variantCount > 1 && <span className="text-[10px] text-muted-foreground">{variantCount} вар. →</span>}
+        {tierPrice
+          ? <span className="text-sm font-bold mt-0.5">{formatRub(tierPrice)}</span>
+          : <span className="text-xs text-muted-foreground mt-0.5">нет цены</span>}
+        {cost > 0 && <span className="text-[10px] text-muted-foreground">себ. {formatRub(cost)}</span>}
         {otherTiers.length > 0 && (
           <div className="mt-1 flex flex-col gap-0.5 border-t pt-1">
             {otherTiers.map((t) => (
               <div key={t.id} className="flex justify-between items-center">
-                <span className="text-[10px] text-muted-foreground truncate">{t.label}</span>
+                <span className="text-[10px] text-muted-foreground truncate">{shortLabel(t)}</span>
                 <span className="text-[10px] text-muted-foreground ml-1 shrink-0">
                   {allPrices[t.id] ? formatRub(allPrices[t.id]) : "—"}
                 </span>
@@ -291,21 +260,30 @@ function ProductCard({
   )
 }
 
-// ── Variant picker dialog ─────────────────────────────────────────────────────
+// ── Variant picker ────────────────────────────────────────────────────────────
 
-function VariantPicker({
-  product, tiers, tierId, priceMap, onPick, onClose,
-}: {
+function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
   product: AdminProduct
-  tiers: Tier[]
-  tierId: string
-  priceMap: Map<string, PricedProduct>
-  onPick: (v: AdminVariant) => void
+  tierPrice: number
+  onConfirm: (picks: { variant: AdminVariant; qty: number }[]) => void
   onClose: () => void
 }) {
-  const priced = priceMap.get(product.id)
-  const tierPrice = priced?.calculated_prices[tierId] ?? 0
-  const cost = priced?.cost ?? 0
+  const [qtys, setQtys] = useState<Record<string, number>>(() =>
+    Object.fromEntries((product.variants ?? []).map((v) => [v.id, 0]))
+  )
+
+  function adjust(variantId: string, delta: number) {
+    setQtys((prev) => ({ ...prev, [variantId]: Math.max(0, (prev[variantId] ?? 0) + delta) }))
+  }
+
+  function handleConfirm() {
+    const picks = (product.variants ?? [])
+      .filter((v) => (qtys[v.id] ?? 0) > 0)
+      .map((v) => ({ variant: v, qty: qtys[v.id] }))
+    if (picks.length > 0) onConfirm(picks)
+  }
+
+  const totalQty = Object.values(qtys).reduce((s, q) => s + q, 0)
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -317,53 +295,54 @@ function VariantPicker({
             )}
             <div>
               <DialogTitle>{product.title}</DialogTitle>
-              <p className="text-sm text-muted-foreground">Выберите вариант</p>
+              {tierPrice > 0 && (
+                <p className="text-sm text-muted-foreground">{formatRub(tierPrice)} / шт.</p>
+              )}
             </div>
           </div>
         </DialogHeader>
 
-        {/* Price summary for this product */}
-        <div className="grid gap-1 rounded-lg bg-muted/50 px-3 py-2 text-sm">
-          {cost > 0 && (
-            <div className="flex justify-between text-muted-foreground">
-              <span>Себестоимость</span>
-              <span>{formatRub(cost)}</span>
-            </div>
-          )}
-          {tiers.map((t) => (
-            <div
-              key={t.id}
-              className={cn(
-                "flex justify-between",
-                t.id === tierId ? "font-semibold text-foreground" : "text-muted-foreground"
-              )}
-            >
-              <span>{t.label}{t.id === tierId ? " ✓" : ""}</span>
-              <span>{priced?.calculated_prices[t.id] ? formatRub(priced.calculated_prices[t.id]) : "—"}</span>
-            </div>
-          ))}
+        <div className="flex flex-col divide-y border rounded-lg overflow-hidden">
+          {(product.variants ?? []).map((variant) => {
+            const qty = qtys[variant.id] ?? 0
+            return (
+              <div key={variant.id} className="flex items-center px-4 py-3 gap-3">
+                <span className="flex-1 text-sm font-medium">{variant.title}</span>
+                {qty > 0 && tierPrice > 0 && (
+                  <span className="text-sm font-semibold text-emerald-500 shrink-0">
+                    {formatRub(tierPrice * qty)}
+                  </span>
+                )}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => adjust(variant.id, -1)}
+                    disabled={qty === 0}
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors disabled:opacity-30"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="w-7 text-center text-sm tabular-nums">{qty}</span>
+                  <button
+                    type="button"
+                    onClick={() => adjust(variant.id, +1)}
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
 
-        <div className="flex flex-col gap-2">
-          {(product.variants ?? []).map((variant) => (
-            <button
-              key={variant.id}
-              type="button"
-              onClick={() => onPick(variant)}
-              className="flex items-center justify-between rounded-lg border px-4 py-3 text-left hover:bg-accent transition-colors"
-            >
-              <div>
-                <span className="text-sm font-medium">{variant.title}</span>
-                {variant.sku && (
-                  <span className="block text-xs text-muted-foreground">SKU: {variant.sku}</span>
-                )}
-              </div>
-              <span className="text-sm font-semibold shrink-0">
-                {tierPrice ? formatRub(tierPrice) : "нет цены"}
-              </span>
-            </button>
-          ))}
-        </div>
+        <Button
+          className="w-full"
+          disabled={totalQty === 0}
+          onClick={handleConfirm}
+        >
+          {totalQty > 0 ? `Добавить (${totalQty} шт.)` : "Выберите количество"}
+        </Button>
       </DialogContent>
     </Dialog>
   )

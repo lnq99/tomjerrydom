@@ -4,6 +4,12 @@ import { useReducer, useCallback, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ShoppingCart, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+function shortTierLabel(tier: { id: string; label: string; min_order_amount: number }): string {
+  if (tier.min_order_amount === 0) return tier.label
+  const rubles = tier.min_order_amount / 100
+  return `Опт ${rubles >= 1000 ? `${Math.round(rubles / 1000)}к` : rubles}`
+}
 import { ProductSearch } from "@/components/pos/product-search"
 import { CartPanel } from "@/components/pos/cart-panel"
 import { getPricingConfig } from "@/lib/api"
@@ -73,7 +79,7 @@ export default function PosPage() {
                   : "bg-background text-muted-foreground border-border hover:bg-accent"
               )}
             >
-              {tier.label}
+              {shortTierLabel(tier)}
             </button>
           ))}
         </div>
