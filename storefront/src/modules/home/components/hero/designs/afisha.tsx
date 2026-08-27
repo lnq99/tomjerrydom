@@ -1,128 +1,130 @@
 "use client"
 
+// Обложка — editorial left column (~34%), backdrop-blur only (no solid bg).
+// Video bleeds through. Heavy vertical rule. Large ghosted number behind headline.
+// Mouse: video parallax + glow tinted with accent color.
+
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { useLandingTheme } from "@lib/landing-theme"
 import { useMediaCarousel, slides } from "@lib/use-media-carousel"
+import { useHeroMouse } from "@lib/use-hero-mouse"
 
-export default function AfishaHero() {
+export default function OblozhkaHero() {
   const { theme } = useLandingTheme()
   const { active, setActive, animKey, setAnimKey, videoRefs, advance } = useMediaCarousel()
+  const { onMouseMove, onMouseLeave, parallaxStyle, glowStyle } = useHeroMouse()
 
   const scrollToAbout = () =>
     document.getElementById("about")?.scrollIntoView({ behavior: "smooth" })
 
+  // Parse accent color for glow (approximate — teal 90,185,160)
+  const accentRgb = theme.indicatorActive.startsWith("#")
+    ? [
+        parseInt(theme.indicatorActive.slice(1, 3), 16),
+        parseInt(theme.indicatorActive.slice(3, 5), 16),
+        parseInt(theme.indicatorActive.slice(5, 7), 16),
+      ]
+    : [255, 255, 255]
+
   return (
-    <section className="relative w-full min-h-[100svh] overflow-hidden bg-black flex flex-col items-center justify-center">
-      {/* Media carousel */}
+    <section
+      className="relative w-full min-h-[100svh] overflow-hidden bg-black"
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+    >
+      {/* Full-bleed video with parallax */}
       {slides.map((slide, i) => (
-        <div
-          key={i}
-          aria-hidden={i !== active}
-          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-            i === active ? "opacity-100" : "opacity-0"
-          }`}
+        <div key={i} aria-hidden={i !== active}
+          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${i === active ? "opacity-100" : "opacity-0"}`}
         >
           {slide.type === "video" ? (
             <video
               ref={(el) => { videoRefs.current[i] = el }}
-              src={slide.src}
-              muted
-              playsInline
+              src={slide.src} muted playsInline
               preload={i === 0 ? "auto" : "metadata"}
               onEnded={i === active ? advance : undefined}
               className="w-full h-full object-cover"
+              style={parallaxStyle(0.7)}
             />
           ) : (
-            <div
-              key={`kb-${animKey}-${i}`}
+            <div key={`kb-${animKey}-${i}`}
               className="w-full h-full bg-cover bg-center motion-safe:animate-[ken-burns_7s_ease-in-out_forwards]"
-              style={{ backgroundImage: `url(${slide.src})` }}
+              style={{ backgroundImage: `url(${slide.src})`, ...parallaxStyle(0.7) }}
             />
           )}
         </div>
       ))}
 
-      {/* Radial vignette — heaviest at center where text sits */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: theme.overlay }} />
-      {/* Bottom fade */}
-      <div className="absolute inset-x-0 bottom-0 h-48 pointer-events-none"
-        style={{ background: theme.overlayBottom }} />
-      {/* Top fade */}
-      <div className="absolute inset-x-0 top-0 h-32 pointer-events-none"
-        style={{ background: theme.overlayBottom.replace("to top", "to bottom") }} />
+      {/* Accent-tinted cursor glow */}
+      <div className="absolute inset-0 z-[1] pointer-events-none transition-all duration-300"
+        style={glowStyle(accentRgb[0], accentRgb[1], accentRgb[2], 0.07)} />
 
-      {/* Content — centered, poster-style */}
-      <div className="relative z-10 flex flex-col items-center text-center px-6 py-24 motion-safe:animate-[fade-up_0.8s_ease-out_forwards] opacity-0 [animation-delay:100ms]">
-        {/* Thin horizontal rule eyebrow */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className="h-px w-12" style={{ background: theme.indicatorActive }} />
-          <p className="text-xs tracking-[0.22em] uppercase font-sans"
-            style={{ color: theme.eyebrowColor }}>
-            Tom&amp;Jerry Дом · Москва
-          </p>
-          <div className="h-px w-12" style={{ background: theme.indicatorActive }} />
-        </div>
-
-        {/* Massive headline */}
-        <h1
-          className="font-display font-black leading-[0.92] tracking-tight mb-8 uppercase"
-          style={{
-            fontSize: "clamp(3.8rem, 11vw, 9.5rem)",
-            textWrap: "balance",
-            color: theme.headlineColor,
-            letterSpacing: "-0.02em",
-          }}
+      {/* Left editorial column — backdrop-blur only, no solid bg */}
+      <div className="relative z-10 min-h-[100svh] flex">
+        <div
+          className="flex flex-col justify-between py-10 small:py-14 w-full small:w-[34%] px-6 small:px-10"
+          style={{ backdropFilter: "blur(2px) brightness(0.55)", WebkitBackdropFilter: "blur(2px) brightness(0.55)" }}
         >
-          Вейп
-          <br />
-          <span style={{ color: theme.subtitleColor }}>Продукция</span>
-          <br />
-          <span className="text-[0.65em]" style={{ color: theme.headlineColor }}>в Москве</span>
-        </h1>
+          {/* Top metadata */}
+          <div>
+            <p className="text-[10px] tracking-[0.24em] uppercase font-sans mb-1"
+              style={{ color: theme.eyebrowColor }}>Tom&amp;Jerry Дом</p>
+            <p className="text-[10px] tracking-[0.18em] font-sans"
+              style={{ color: theme.indicatorInactive }}>Москва · 2026</p>
+          </div>
 
-        {/* Single primary CTA — poster style: one action */}
-        <div className="flex flex-col xsmall:flex-row items-center gap-4">
-          <LocalizedClientLink
-            href="/store"
-            className="inline-flex items-center gap-2.5 font-sans font-bold text-sm tracking-wide px-10 py-4 rounded-none border-2 transition-opacity duration-200 hover:opacity-80"
-            style={{
-              backgroundColor: theme.ctaPrimary.bg,
-              color: theme.ctaPrimary.text,
-              borderColor: theme.ctaPrimary.bg,
-            }}
-          >
-            Открыть каталог
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
-            </svg>
-          </LocalizedClientLink>
-          <button
-            type="button"
-            onClick={scrollToAbout}
-            className="font-sans font-medium text-sm tracking-wide transition-opacity duration-200 hover:opacity-70 underline underline-offset-4"
-            style={{ color: theme.ctaSecondary.text }}
-          >
-            О магазине
-          </button>
+          {/* Headline + copy + CTAs */}
+          <div className="motion-safe:animate-[fade-up_0.6s_ease-out_forwards] opacity-0 [animation-delay:150ms]">
+            <p className="font-display font-black leading-none mb-6 select-none"
+              style={{ fontSize: "clamp(4rem, 10vw, 8rem)", color: theme.indicatorActive, opacity: 0.14, letterSpacing: "-0.04em" }}
+              aria-hidden>01</p>
+
+            <h1
+              className="font-display font-black leading-[0.95] tracking-tight mb-6"
+              style={{ fontSize: "clamp(2.2rem, 4.5vw, 3.8rem)", color: theme.headlineColor, letterSpacing: "-0.025em", textWrap: "balance" }}
+            >
+              Вейп-<br />продукция<br />
+              <span style={{ color: theme.subtitleColor }}>в&nbsp;Москве</span>
+            </h1>
+
+            <p className="text-xs leading-relaxed mb-8 font-sans max-w-[24ch]"
+              style={{ color: theme.bodyColor }}>
+              Широкий ассортимент. Честные цены. Быстрая доставка.
+            </p>
+
+            <div className="flex flex-col gap-2.5">
+              <LocalizedClientLink
+                href="/store"
+                className="inline-flex items-center gap-2 font-sans font-bold text-xs px-6 py-3 transition-opacity hover:opacity-80"
+                style={{ backgroundColor: theme.ctaPrimary.bg, color: theme.ctaPrimary.text }}
+              >
+                В каталог →
+              </LocalizedClientLink>
+              <button type="button" onClick={scrollToAbout}
+                className="inline-flex items-center font-sans font-medium text-xs px-6 py-3 transition-opacity hover:opacity-65"
+                style={{ border: `1px solid ${theme.ctaSecondary.border}`, color: theme.ctaSecondary.text }}
+              >
+                О магазине
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom indicators */}
+          <div className="flex gap-2">
+            {slides.map((_, i) => (
+              <button key={i} type="button"
+                onClick={() => { setActive(i); setAnimKey((k) => k + 1) }}
+                aria-label={`Слайд ${i + 1}`}
+                className="rounded-full transition-all duration-300"
+                style={{ width: i === active ? "20px" : "5px", height: "5px", background: i === active ? theme.indicatorActive : theme.indicatorInactive }}
+              />
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Slide indicators — centered bottom */}
-      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 z-10 flex gap-2.5">
-        {slides.map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => { setActive(i); setAnimKey((k) => k + 1) }}
-            aria-label={`Слайд ${i + 1}`}
-            className="rounded-full transition-all duration-300"
-            style={{
-              width: i === active ? "24px" : "6px",
-              height: "6px",
-              background: i === active ? theme.indicatorActive : theme.indicatorInactive,
-            }}
-          />
-        ))}
+        {/* Vertical rule */}
+        <div className="hidden small:block w-px shrink-0 self-stretch"
+          style={{ background: `linear-gradient(to bottom, transparent, ${theme.indicatorActive}50, transparent)` }} />
       </div>
     </section>
   )
