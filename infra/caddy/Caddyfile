@@ -1,40 +1,58 @@
 # ---------------------------------------------------------------------------
 # Caddyfile — TomJerryDom production reverse proxy
 #
-# Set DOMAIN env var before starting, e.g.:
-#   DOMAIN=api.example.com docker compose up -d proxy
+# Required env vars:
+#   DOMAIN         = api.yourdomain.com      (Medusa backend)
+#   MANAGER_DOMAIN = manager.yourdomain.com  (internal manager app)
 #
 # Caddy handles TLS automatically via Let's Encrypt.
-# Storefront is on Cloudflare Pages — only the Medusa API lives here.
+# Storefront is on Cloudflare Pages — only the API and manager live here.
 # ---------------------------------------------------------------------------
 
+# Medusa API
 {$DOMAIN} {
-    # Proxy everything to the Medusa backend
     reverse_proxy medusa:9000 {
-        # Pass real client IP through
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
 
-        # Health-check upstream before routing
         health_uri /health
         health_interval 15s
         health_timeout 5s
     }
 
-    # Security headers
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin
-        # Remove Caddy's Server header
         -Server
     }
 
-    # Compress responses
     encode zstd gzip
 
-    # Access log to stdout — Docker captures it
+    log {
+        output stdout
+        format json
+    }
+}
+
+# Manager back-office (restrict to your IP in production via firewall, not here)
+{$MANAGER_DOMAIN} {
+    reverse_proxy manager:3100 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+
+    encode zstd gzip
+
     log {
         output stdout
         format json

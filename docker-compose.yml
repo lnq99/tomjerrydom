@@ -80,8 +80,35 @@ services:
       - "9000:9000"
     networks:
       - internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     # Run migrations then start. Safe to re-run — migrations are idempotent.
     command: sh -c "node_modules/.bin/medusa db:migrate && node index.js"
+
+  # ---------------------------------------------------------------------------
+  # Manager — internal back-office Next.js app (port 3100)
+  # ---------------------------------------------------------------------------
+  manager:
+    build:
+      context: ./manager
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-https://api.example.com}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.3'
+    depends_on:
+      medusa:
+        condition: service_healthy
+    networks:
+      - internal
 
   # ---------------------------------------------------------------------------
   # Caddy — reverse proxy with automatic TLS
@@ -99,6 +126,7 @@ services:
       - medusa
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN is required (e.g. api.example.com)}
+      MANAGER_DOMAIN: ${MANAGER_DOMAIN:?MANAGER_DOMAIN is required (e.g. manager.example.com)}
     ports:
       - "80:80"
       - "443:443"
