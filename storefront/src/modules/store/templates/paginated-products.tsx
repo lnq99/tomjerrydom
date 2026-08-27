@@ -1,6 +1,7 @@
 import { listProductsWithSort } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
 import { OptionValueIds } from "@lib/util/product-option-filters"
+import { HttpTypes } from "@medusajs/types"
 import ProductPreview from "@modules/products/components/product-preview"
 import { Pagination } from "@modules/store/components/pagination"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
@@ -15,6 +16,18 @@ type PaginatedProductsParams = {
   order?: string
 }
 
+function normalizeSearch(s: string): string {
+  return s.toLowerCase().replace(/[^a-zа-яё0-9]/g, "")
+}
+
+function matchesSearch(product: HttpTypes.StoreProduct, query: string): boolean {
+  const brand = typeof product.subtitle === "string" ? product.subtitle : ""
+  const title = typeof product.title === "string" ? product.title : ""
+  const haystack = normalizeSearch(brand + title)
+  const needle = normalizeSearch(query)
+  return needle.length === 0 || haystack.includes(needle)
+}
+
 export default async function PaginatedProducts({
   sortBy,
   page,
@@ -23,6 +36,7 @@ export default async function PaginatedProducts({
   productsIds,
   countryCode,
   optionValueIds,
+  searchQuery,
 }: {
   sortBy?: SortOptions
   page: number
@@ -31,6 +45,7 @@ export default async function PaginatedProducts({
   productsIds?: string[]
   countryCode: string
   optionValueIds?: OptionValueIds
+  searchQuery?: string
 }) {
   const queryParams: PaginatedProductsParams = {
     limit: 12,
@@ -68,7 +83,19 @@ export default async function PaginatedProducts({
     optionValueIds,
   })
 
-  const totalPages = Math.ceil(count / PRODUCT_LIMIT)
+  const filtered = searchQuery
+    ? products.filter((p) => matchesSearch(p, searchQuery))
+    : products
+
+  const totalPages = searchQuery ? 1 : Math.ceil(count / PRODUCT_LIMIT)
+
+  if (filtered.length === 0) {
+    return (
+      <p className="text-ui-fg-subtle text-sm py-8">
+        По запросу ничего не найдено.
+      </p>
+    )
+  }
 
   return (
     <>
@@ -76,7 +103,7 @@ export default async function PaginatedProducts({
         className="grid grid-cols-2 w-full small:grid-cols-3 medium:grid-cols-4 gap-x-6 gap-y-8"
         data-testid="products-list"
       >
-        {products.map((p) => {
+        {filtered.map((p) => {
           return (
             <li key={p.id}>
               <ProductPreview product={p} region={region} />
