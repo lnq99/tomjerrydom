@@ -57,7 +57,7 @@ export async function POST(
     })
   }
 
-  // Fetch variants with capital + category profit config + price set prices for fallback
+  // Fetch variants with cost + category profit config + price set prices for fallback
   const { data: variants } = await query.graph({
     entity: "product_variant",
     fields: [
@@ -95,15 +95,15 @@ export async function POST(
     let subtotal = 0
     for (const item of items) {
       const variant = variantMap.get(item.variant_id)
-      const capital: number | undefined = variant
-        ? (variant.product?.metadata as any)?.capital
+      const cost: number | undefined = variant
+        ? (variant.product?.metadata as any)?.cost
         : undefined
-      if (capital) {
+      if (cost) {
         const categories = variant.product?.categories ?? []
         const profit = getTierProfit(categories, tier.id)
-        subtotal += calcPrice(capital, profit) * item.quantity
+        subtotal += calcPrice(cost, profit) * item.quantity
       } else {
-        // No capital — use price list price for this tier if available, else current unit_price
+        // No cost — use price list price for this tier if available, else current unit_price
         const plPrice = plVariantPrices?.get(item.variant_id)
         subtotal += (plPrice ?? item.unit_price ?? 0) * item.quantity
       }

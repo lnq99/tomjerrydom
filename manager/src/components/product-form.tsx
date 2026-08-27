@@ -13,7 +13,7 @@ import {
   updateVariant,
   uploadFile, listCategories, listStockLocations,
   setInventoryLevel, getVariantInventoryItems,
-  saveProductCapitals,
+  saveProductCosts,
   type CreateProductInput,
 } from "@/lib/api"
 import { rubles, toKopecks } from "@/lib/utils"
@@ -36,7 +36,7 @@ type FormState = {
   title: string
   status: "published" | "draft" | "rejected"
   categoryId: string
-  capital: string        // import price in rubles (stored as kopecks in metadata)
+  cost: string           // cost price in rubles (stored as kopecks in metadata)
   images: ImageItem[]
   variants: VariantRow[]
 }
@@ -69,12 +69,12 @@ function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
 }
 
 function initForm(product?: AdminProduct): FormState {
-  const capital = (product?.metadata?.capital as number) ?? 0
+  const cost = (product?.metadata?.cost as number) ?? 0
   return {
     title: product?.title ?? "",
     status: (product?.status ?? "draft") as FormState["status"],
     categoryId: product?.categories?.[0]?.id ?? "",
-    capital: rubles(capital),
+    cost: rubles(cost),
     images: product?.images?.map((img) => ({ url: img.url })) ?? [],
     variants: product?.variants?.map(variantToRow) ??
       [{ _key: makeKey(), title: "", sku: "", stock: "", initialStock: "" }],
@@ -230,8 +230,8 @@ export function ProductForm({
         : undefined,
     }
     const { product: created } = await createProduct(input)
-    if (form.capital) {
-      await saveProductCapitals([{ product_id: created.id, capital: toKopecks(form.capital) }])
+    if (form.cost) {
+      await saveProductCosts([{ product_id: created.id, cost: toKopecks(form.cost) }])
     }
     qc.invalidateQueries({ queryKey: ["products"] })
     toast.success("Товар создан")
@@ -249,8 +249,8 @@ export function ProductForm({
       thumbnail: form.images[0]?.url ?? null,
     })
 
-    if (form.capital) {
-      await saveProductCapitals([{ product_id: product.id, capital: toKopecks(form.capital) }])
+    if (form.cost) {
+      await saveProductCosts([{ product_id: product.id, cost: toKopecks(form.cost) }])
     }
 
     const toDelete = form.variants.filter((v) => v.deleted && v.id)
@@ -387,8 +387,8 @@ export function ProductForm({
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">Себестоимость ₽</label>
                     <Input
-                      value={form.capital}
-                      onChange={(e) => setField("capital", e.target.value)}
+                      value={form.cost}
+                      onChange={(e) => setField("cost", e.target.value)}
                       placeholder="0"
                       type="number"
                       min="0"

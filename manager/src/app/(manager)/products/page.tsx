@@ -7,7 +7,7 @@ import { Search, ChevronRight, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { listProducts, updateProduct, saveProductCapitals, type AdminProduct } from "@/lib/api"
+import { listProducts, updateProduct, saveProductCosts, type AdminProduct } from "@/lib/api"
 import { formatRub, rubles, toKopecks } from "@/lib/utils"
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
@@ -109,7 +109,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
   const qc = useQueryClient()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
-  const capital = (product.metadata?.capital as number) ?? 0
+  const cost = (product.metadata?.cost as number) ?? 0
 
   async function cycleStatus(e: React.MouseEvent) {
     e.stopPropagation()
@@ -136,7 +136,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{product.title}</p>
         <p className="text-xs text-muted-foreground">
-          {category} · {product.variants?.length ?? 0} вар. · {capital ? formatRub(capital) : "—"}
+          {category} · {product.variants?.length ?? 0} вар. · {cost ? formatRub(cost) : "—"}
         </p>
       </div>
       <button type="button" onClick={cycleStatus} title="Сменить статус">
@@ -154,31 +154,31 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
   const qc = useQueryClient()
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
-  const capital = (product.metadata?.capital as number) ?? 0
+  const cost = (product.metadata?.cost as number) ?? 0
 
-  const [editingCapital, setEditingCapital] = useState(false)
-  const [capitalVal, setCapitalVal] = useState(() => rubles(capital))
-  const [savingCapital, setSavingCapital] = useState(false)
+  const [editingCost, setEditingCost] = useState(false)
+  const [costVal, setCostVal] = useState(() => rubles(cost))
+  const [savingCost, setSavingCost] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
 
   // keep input in sync when query refetches
   useEffect(() => {
-    if (!editingCapital) setCapitalVal(rubles(capital))
-  }, [capital, editingCapital])
+    if (!editingCost) setCostVal(rubles(cost))
+  }, [cost, editingCost])
 
-  async function saveCapital() {
-    setEditingCapital(false)
-    const newKopecks = toKopecks(capitalVal)
-    if (newKopecks === capital) return
-    setSavingCapital(true)
+  async function saveCost() {
+    setEditingCost(false)
+    const newKopecks = toKopecks(costVal)
+    if (newKopecks === cost) return
+    setSavingCost(true)
     try {
-      await saveProductCapitals([{ product_id: product.id, capital: newKopecks }])
+      await saveProductCosts([{ product_id: product.id, cost: newKopecks }])
       qc.invalidateQueries({ queryKey: ["products"] })
     } catch {
       toast.error("Не удалось обновить себестоимость")
-      setCapitalVal(rubles(capital))
+      setCostVal(rubles(cost))
     } finally {
-      setSavingCapital(false)
+      setSavingCost(false)
     }
   }
 
@@ -217,28 +217,28 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
       {/* Variants count */}
       <td className="px-4 py-3 text-muted-foreground">{product.variants?.length ?? 0}</td>
 
-      {/* Capital — click cell to edit */}
+      {/* Cost — click cell to edit */}
       <td
         className="px-4 py-3"
-        onClick={(e) => { e.stopPropagation(); if (!savingCapital) setEditingCapital(true) }}
+        onClick={(e) => { e.stopPropagation(); if (!savingCost) setEditingCost(true) }}
       >
-        {editingCapital ? (
+        {editingCost ? (
           <input
             autoFocus
             type="number"
             min="0"
-            value={capitalVal}
-            onChange={(e) => setCapitalVal(e.target.value)}
-            onBlur={saveCapital}
+            value={costVal}
+            onChange={(e) => setCostVal(e.target.value)}
+            onBlur={saveCost}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur()
-              if (e.key === "Escape") { setEditingCapital(false); setCapitalVal(rubles(capital)) }
+              if (e.key === "Escape") { setEditingCost(false); setCostVal(rubles(cost)) }
             }}
             className="h-7 w-24 rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           />
         ) : (
-          <span className={`text-sm ${savingCapital ? "opacity-40" : "hover:underline underline-offset-2 cursor-text"}`}>
-            {capital ? formatRub(capital) : <span className="text-muted-foreground">—</span>}
+          <span className={`text-sm ${savingCost ? "opacity-40" : "hover:underline underline-offset-2 cursor-text"}`}>
+            {cost ? formatRub(cost) : <span className="text-muted-foreground">—</span>}
           </span>
         )}
       </td>

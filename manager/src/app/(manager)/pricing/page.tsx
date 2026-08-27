@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
-  getPricingConfig, saveCategoryMargins, saveProductCapitals, syncPrices,
+  getPricingConfig, saveCategoryMargins, saveProductCosts, syncPrices,
   type PricingConfig,
 } from "@/lib/api"
 import { formatRub, rubles, toKopecks } from "@/lib/utils"
 
-type Tab = "margins" | "capitals"
+type Tab = "margins" | "costs"
 
 export default function PricingPage() {
   const qc = useQueryClient()
@@ -42,7 +42,7 @@ export default function PricingPage() {
         <h1 className="text-xl font-bold mb-3">Ценообразование</h1>
         <p className="text-xs text-muted-foreground mb-3">Цена = Закупка × (1 + Наценка%)</p>
         <div className="flex gap-1">
-          {(["margins", "capitals"] as Tab[]).map((t) => (
+          {(["margins", "costs"] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -62,7 +62,7 @@ export default function PricingPage() {
 
       <div className="flex-1 overflow-y-auto">
         {tab === "margins" && <MarginsTab data={data} onSaved={invalidate} />}
-        {tab === "capitals" && <CapitalsTab data={data} onSaved={invalidate} />}
+        {tab === "costs" && <CostsTab data={data} onSaved={invalidate} />}
       </div>
     </div>
   )
@@ -204,27 +204,27 @@ function MarginsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => voi
   )
 }
 
-// ── Capitals Tab ─────────────────────────────────────────────────────────────
-function CapitalsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void }) {
-  const [capitals, setCapitals] = useState<Record<string, string>>({})
+// ── Costs Tab ────────────────────────────────────────────────────────────────
+function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void }) {
+  const [costs, setCosts] = useState<Record<string, string>>({})
   const [dirty, setDirty] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const init: Record<string, string> = {}
-    for (const prod of data.products) init[prod.id] = rubles(prod.capital)
-    setCapitals(init)
+    for (const prod of data.products) init[prod.id] = rubles(prod.cost)
+    setCosts(init)
     setDirty(new Set())
   }, [data.products])
 
-  const setCapital = (prodId: string, value: string) => {
-    setCapitals((prev) => ({ ...prev, [prodId]: value }))
+  const setCost = (prodId: string, value: string) => {
+    setCosts((prev) => ({ ...prev, [prodId]: value }))
     setDirty((prev) => new Set(prev).add(prodId))
   }
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      saveProductCapitals(
-        [...dirty].map((id) => ({ product_id: id, capital: toKopecks(capitals[id] ?? "0") }))
+      saveProductCosts(
+        [...dirty].map((id) => ({ product_id: id, cost: toKopecks(costs[id] ?? "0") }))
       ),
     onSuccess: () => { toast.success("Закупочные цены сохранены"); setDirty(new Set()); onSaved() },
     onError: () => toast.error("Ошибка сохранения"),
@@ -240,11 +240,11 @@ function CapitalsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => vo
   })
 
   function getPreview(prod: typeof data.products[0], tierId: string): string {
-    const cap = toKopecks(capitals[prod.id] ?? "0")
-    if (!cap) return "—"
+    const cost = toKopecks(costs[prod.id] ?? "0")
+    if (!cost) return "—"
     const catConfig = data.categories.find((c) => c.id === prod.category_id)
     const profit = catConfig?.tier_profit?.[tierId] ?? data.default_profit[tierId] ?? 30
-    return formatRub(Math.round(cap * (1 + profit / 100)))
+    return formatRub(Math.round(cost * (1 + profit / 100)))
   }
 
   return (
@@ -285,8 +285,8 @@ function CapitalsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => vo
                 min={0}
                 placeholder="Закупка ₽"
                 className="h-8 flex-1 text-sm"
-                value={capitals[prod.id] ?? ""}
-                onChange={(e) => setCapital(prod.id, e.target.value)}
+                value={costs[prod.id] ?? ""}
+                onChange={(e) => setCost(prod.id, e.target.value)}
               />
             </div>
             <div className="grid grid-cols-3 gap-1 text-xs">
@@ -337,8 +337,8 @@ function CapitalsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => vo
                     min={0}
                     placeholder="0"
                     className="h-8 w-28 text-center mx-auto block"
-                    value={capitals[prod.id] ?? ""}
-                    onChange={(e) => setCapital(prod.id, e.target.value)}
+                    value={costs[prod.id] ?? ""}
+                    onChange={(e) => setCost(prod.id, e.target.value)}
                   />
                 </td>
                 {data.tiers.map((tier) => (

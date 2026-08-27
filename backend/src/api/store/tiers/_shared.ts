@@ -25,7 +25,7 @@ export function getTierProfit(
   return DEFAULT_TIER_PROFIT[tierId] ?? 30
 }
 
-/** Selling price = capital × (1 + profit%) */
-export function calcPrice(capital: number, profitPercent: number): number {
-  return Math.round(capital * (1 + profitPercent / 100))
+/** Selling price = cost × (1 + profit%) */
+export function calcPrice(cost: number, profitPercent: number): number {
+  return Math.round(cost * (1 + profitPercent / 100))
 }

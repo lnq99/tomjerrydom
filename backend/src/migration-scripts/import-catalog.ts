@@ -23,7 +23,7 @@ type CatalogProduct = {
   subcategory: string | null
   title: string
   variants: string[]
-  capital: number | null
+  cost: number | null
   img_url: string | null
   img_name: string | null
 }
@@ -229,7 +229,7 @@ export default async function import_catalog({
         status: "published" as const,
         sales_channels: [{ id: salesChannelId }],
         categories: categoryId ? [{ id: categoryId }] : [],
-        metadata: p.capital !== null ? { capital: p.capital } : {},
+        metadata: p.cost !== null ? { cost: p.cost } : {},
         ...(hasOptions
           ? {
               options: [{ title: "Вкус", values: variantTitles }],

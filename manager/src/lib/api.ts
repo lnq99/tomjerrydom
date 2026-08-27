@@ -265,7 +265,7 @@ export type PricingConfig = {
     id: string
     title: string
     thumbnail: string | null
-    capital: number
+    cost: number
     category_id: string | null
     category_name: string | null
     calculated_prices: Record<string, number>
@@ -282,8 +282,8 @@ export async function saveCategoryMargins(
   await apiFetch("/admin/pricing-config", { method: "POST", body: JSON.stringify({ updates }) })
 }
 
-export async function saveProductCapitals(
-  updates: { product_id: string; capital: number }[]
+export async function saveProductCosts(
+  updates: { product_id: string; cost: number }[]
 ): Promise<void> {
   await apiFetch("/admin/pricing-config/products", { method: "POST", body: JSON.stringify({ updates }) })
 }

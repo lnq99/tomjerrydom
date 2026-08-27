@@ -38,7 +38,7 @@ export async function POST(
     return res.json({ cart })
   }
 
-  // Fetch variants with product capital + category profit config
+  // Fetch variants with product cost + category profit config
   const { data: variants } = await query.graph({
     entity: "product_variant",
     fields: [
@@ -56,12 +56,12 @@ export async function POST(
     const variant = variantMap.get(item.variant_id)
     if (!variant) continue
 
-    const capital: number = (variant.product?.metadata as any)?.capital
-    if (!capital) continue
+    const cost: number = (variant.product?.metadata as any)?.cost
+    if (!cost) continue
 
     const categories = variant.product?.categories ?? []
     const profit = getTierProfit(categories, tier_id)
-    const price = calcPrice(capital, profit)
+    const price = calcPrice(cost, profit)
 
     updates.push({ id: item.id, unit_price: price })
   }

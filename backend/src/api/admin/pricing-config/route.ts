@@ -31,7 +31,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     fields: ["id", "name", "metadata"],
   })
 
-  // Load products with capital + category info
+  // Load products with cost + category info
   const { data: products } = await query.graph({
     entity: "product",
     fields: ["id", "title", "thumbnail", "metadata", "categories.id", "categories.name"],
@@ -49,17 +49,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   })
 
   const formattedProducts = (products as any[]).map((prod) => {
-    const capital: number = (prod.metadata as any)?.capital ?? 0
+    const cost: number = (prod.metadata as any)?.cost ?? 0
     const categoryId = prod.categories?.[0]?.id ?? null
     const categoryName = prod.categories?.[0]?.name ?? null
 
     // Find category tier_profit for price preview
     const cat = formattedCategories.find((c) => c.id === categoryId)
     const calculated: Record<string, number> = {}
-    if (capital > 0) {
+    if (cost > 0) {
       for (const tier of tiers) {
         const profit = cat?.tier_profit?.[tier.id] ?? DEFAULT_TIER_PROFIT[tier.id] ?? 30
-        calculated[tier.id] = calcPrice(capital, profit)
+        calculated[tier.id] = calcPrice(cost, profit)
       }
     }
 
@@ -67,7 +67,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       id: prod.id,
       title: prod.title,
       thumbnail: prod.thumbnail ?? null,
-      capital,
+      cost,
       category_id: categoryId,
       category_name: categoryName,
       calculated_prices: calculated,
