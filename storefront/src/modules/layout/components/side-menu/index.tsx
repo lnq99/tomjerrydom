@@ -11,7 +11,6 @@ import CountrySelect from "../country-select"
 import LanguageSelect from "../language-select"
 import { Locale } from "@lib/data/locales"
 
-
 const SideMenuItems = {
   "Главная": "/",
   "Магазин": "/store",
@@ -23,9 +22,10 @@ type SideMenuProps = {
   regions: HttpTypes.StoreRegion[] | null
   locales: Locale[] | null
   currentLocale: string | null
+  categories?: HttpTypes.StoreProductCategory[]
 }
 
-const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
+const SideMenu = ({ regions, locales, currentLocale, categories = [] }: SideMenuProps) => {
   const countryToggleState = useToggleState()
   const languageToggleState = useToggleState()
 
@@ -73,20 +73,38 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                       </button>
                     </div>
                     <ul className="flex flex-col gap-6 items-start justify-start">
-                      {Object.entries(SideMenuItems).map(([name, href]) => {
-                        return (
-                          <li key={name}>
-                            <LocalizedClientLink
-                              href={href}
-                              className="text-3xl leading-10 hover:text-ui-fg-disabled"
-                              onClick={close}
-                              data-testid={`${name.toLowerCase()}-link`}
-                            >
-                              {name}
-                            </LocalizedClientLink>
-                          </li>
-                        )
-                      })}
+                      {Object.entries(SideMenuItems).map(([name, href]) => (
+                        <li key={name}>
+                          <LocalizedClientLink
+                            href={href}
+                            className="text-3xl leading-10 hover:text-ui-fg-disabled"
+                            onClick={close}
+                            data-testid={`${name.toLowerCase()}-link`}
+                          >
+                            {name}
+                          </LocalizedClientLink>
+                        </li>
+                      ))}
+                      {categories.length > 0 && (
+                        <li>
+                          <div className="border-t border-white/10 pt-6">
+                            <p className="text-xs uppercase tracking-widest text-white/40 mb-4">Категории</p>
+                            <ul className="flex flex-col gap-4">
+                              {categories.map((cat) => (
+                                <li key={cat.id}>
+                                  <LocalizedClientLink
+                                    href={`/categories/${cat.handle}`}
+                                    className="text-xl leading-8 hover:text-ui-fg-disabled"
+                                    onClick={close}
+                                  >
+                                    {cat.name}
+                                  </LocalizedClientLink>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </li>
+                      )}
                     </ul>
                     <div className="flex flex-col gap-y-6">
                       {!!locales?.length && (

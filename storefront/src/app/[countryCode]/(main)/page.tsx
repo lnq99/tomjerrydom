@@ -2,6 +2,7 @@ import { Metadata } from "next"
 
 import AboutStore from "@modules/home/components/about-store"
 import FeaturedProducts from "@modules/home/components/featured-products"
+import FeaturedProductsSection from "@modules/home/components/featured-products-section"
 import LandingShell from "@modules/home/components/landing-shell"
 import Reels from "@modules/home/components/reels"
 import { listCollections } from "@lib/data/collections"
@@ -28,18 +29,16 @@ export default async function Home(props: {
   }
 
   return (
-    <>
-      <LandingShell />
-
-      <div className="py-12">
+    <LandingShell>
+      <FeaturedProductsSection>
         <ul className="flex flex-col gap-x-6">
           <FeaturedProducts collections={collections} region={region} />
         </ul>
-      </div>
+      </FeaturedProductsSection>
 
       <Reels />
 
       <AboutStore />
-    </>
+    </LandingShell>
   )
 }

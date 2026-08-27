@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useLandingTheme } from "@lib/landing-theme"
 
 const BASE = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample"
 
@@ -13,6 +14,7 @@ const REELS = [
 ]
 
 export default function Reels() {
+  const { theme } = useLandingTheme()
   const [active, setActive] = useState(0)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -27,12 +29,7 @@ export default function Reels() {
         v.pause()
       }
     })
-
-    cardRefs.current[active]?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "center",
-    })
+    cardRefs.current[active]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" })
   }, [active])
 
   const handleEnded = useCallback(() => {
@@ -40,28 +37,37 @@ export default function Reels() {
   }, [])
 
   return (
-    <section className="py-12 border-t border-ui-border-base">
-      <div className="content-container mb-5">
-        <h2 className="text-2xl font-semibold text-ui-fg-base">Смотрите нас</h2>
+    <section style={{ backgroundColor: theme.panelBg, borderTop: `1px solid ${theme.indicatorInactive}30` }}>
+      <div className="content-container pt-12 pb-6">
+        <div className="flex items-center gap-4 mb-8">
+          <h2
+            className="font-display font-black leading-tight shrink-0"
+            style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.6rem)", color: theme.headlineColor, letterSpacing: "-0.02em" }}
+          >
+            Смотрите нас
+          </h2>
+          <div className="h-px flex-1" style={{ background: theme.indicatorInactive }} />
+          <span className="text-[10px] tracking-[0.18em] uppercase font-sans shrink-0"
+            style={{ color: theme.eyebrowColor }}>
+            {active + 1} / {REELS.length}
+          </span>
+        </div>
       </div>
 
       <div className="flex gap-3 overflow-x-auto px-4 small:px-8 pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {REELS.map((reel, i) => (
-          <div
-            key={reel.id}
-            ref={(el) => { cardRefs.current[i] = el }}
-            className="shrink-0"
-            style={{ width: "168px" }}
-          >
+          <div key={reel.id} ref={(el) => { cardRefs.current[i] = el }} className="shrink-0" style={{ width: "168px" }}>
             <button
               type="button"
               onClick={() => setActive(i)}
-              className={`relative w-full rounded-2xl overflow-hidden transition-all duration-300 block ${
-                i === active
-                  ? "ring-2 ring-ui-fg-interactive scale-100 opacity-100"
-                  : "opacity-50 hover:opacity-75 scale-95 hover:scale-[0.97]"
-              }`}
-              style={{ aspectRatio: "9/16" }}
+              className="relative w-full rounded-2xl overflow-hidden transition-all duration-300 block"
+              style={{
+                aspectRatio: "9/16",
+                outline: i === active ? `2px solid ${theme.indicatorActive}` : "none",
+                outlineOffset: "2px",
+                opacity: i === active ? 1 : 0.45,
+                transform: i === active ? "scale(1)" : "scale(0.95)",
+              }}
               aria-label={`Рилс ${i + 1}`}
             >
               <video
@@ -71,12 +77,14 @@ export default function Reels() {
                 playsInline
                 preload="metadata"
                 onEnded={i === active ? handleEnded : undefined}
-                className="w-full h-full object-cover bg-ui-bg-subtle"
+                className="w-full h-full object-cover"
+                style={{ backgroundColor: theme.cardBg }}
               />
 
               {i !== active && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur-sm">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
                     <svg viewBox="0 0 20 20" fill="white" className="w-4 h-4 ml-0.5">
                       <path d="M6.3 2.841A1.5 1.5 0 0 0 4 4.11v11.78a1.5 1.5 0 0 0 2.3 1.269l9.344-5.89a1.5 1.5 0 0 0 0-2.538L6.3 2.84Z" />
                     </svg>
@@ -85,8 +93,9 @@ export default function Reels() {
               )}
 
               {i === active && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-                  <div className="h-full bg-white animate-[progress_15s_linear_forwards]" />
+                <div className="absolute bottom-0 left-0 right-0 h-1" style={{ background: `${theme.indicatorActive}40` }}>
+                  <div className="h-full animate-[progress_15s_linear_forwards]"
+                    style={{ background: theme.indicatorActive }} />
                 </div>
               )}
             </button>
@@ -94,19 +103,20 @@ export default function Reels() {
         ))}
       </div>
 
-      {/* dot indicators */}
-      <div className="flex justify-center gap-1.5 mt-4">
+      {/* Dot indicators */}
+      <div className="flex justify-center gap-1.5 mt-5 pb-12">
         {REELS.map((_, i) => (
           <button
             key={i}
             type="button"
             onClick={() => setActive(i)}
             aria-label={`Рилс ${i + 1}`}
-            className={`rounded-full transition-all duration-300 ${
-              i === active
-                ? "w-4 h-1.5 bg-ui-fg-base"
-                : "w-1.5 h-1.5 bg-ui-border-strong hover:bg-ui-fg-muted"
-            }`}
+            className="rounded-full transition-all duration-300"
+            style={{
+              width: i === active ? "16px" : "6px",
+              height: "6px",
+              background: i === active ? theme.indicatorActive : theme.indicatorInactive,
+            }}
           />
         ))}
       </div>

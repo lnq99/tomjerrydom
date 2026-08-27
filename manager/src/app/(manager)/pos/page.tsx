@@ -1,10 +1,12 @@
 "use client"
 
 import { useReducer, useCallback, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { ShoppingCart, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ProductSearch } from "@/components/pos/product-search"
 import { CartPanel } from "@/components/pos/cart-panel"
+import { getPricingConfig } from "@/lib/api"
 import {
   emptyCart, addItem, removeItem, setQty, setPrice, cartTotal,
   type Cart, type LineItem,
@@ -32,6 +34,15 @@ type Tab = "products" | "cart"
 export default function PosPage() {
   const [cart, dispatch] = useReducer(reducer, emptyCart)
   const [tab, setTab] = useState<Tab>("products")
+  const [tierId, setTierId] = useState("retail")
+
+  const { data: pricingData } = useQuery({
+    queryKey: ["pricing-config"],
+    queryFn: getPricingConfig,
+    staleTime: 60_000,
+  })
+
+  const tiers = pricingData?.tiers ?? [{ id: "retail", label: "Розница", min_order_amount: 0, sort_order: 0 }]
 
   const total = cartTotal(cart)
   const itemCount = cart.items.reduce((s, i) => s + i.quantity, 0)
@@ -43,15 +54,41 @@ export default function PosPage() {
 
   return (
     <div className="flex h-[calc(100dvh-0px)] md:h-screen flex-col md:flex-row">
-      {/* Products — hidden on mobile when showing cart */}
+      {/* Products panel */}
       <div className={cn(
-        "flex-1 flex flex-col p-3 overflow-hidden",
+        "flex-1 flex flex-col overflow-hidden",
         tab === "cart" ? "hidden md:flex" : "flex"
       )}>
-        <ProductSearch onAddItem={handleAdd} />
+        {/* Tier selector */}
+        <div className="border-b px-3 py-2 flex items-center gap-1.5 shrink-0 overflow-x-auto">
+          {tiers.map((tier) => (
+            <button
+              key={tier.id}
+              type="button"
+              onClick={() => setTierId(tier.id)}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium border whitespace-nowrap transition-colors",
+                tierId === tier.id
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-accent"
+              )}
+            >
+              {tier.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-hidden p-3">
+          <ProductSearch
+            tierId={tierId}
+            tiers={tiers}
+            pricingData={pricingData ?? null}
+            onAddItem={handleAdd}
+          />
+        </div>
       </div>
 
-      {/* Cart — full screen on mobile, fixed sidebar on desktop */}
+      {/* Cart panel */}
       <div className={cn(
         "md:w-80 xl:w-96 md:shrink-0 md:flex md:flex-col h-full",
         tab === "products" ? "hidden md:flex" : "flex flex-col flex-1"
@@ -66,7 +103,7 @@ export default function PosPage() {
         />
       </div>
 
-      {/* Mobile tab bar (within the page, above BottomNav) */}
+      {/* Mobile tab bar */}
       <div className="md:hidden fixed bottom-16 inset-x-0 border-t bg-background flex z-20">
         <button
           type="button"
