@@ -78,9 +78,11 @@ export async function listProducts(params?: {
   q?: string
   limit?: number
   offset?: number
+  category_id?: string
 }): Promise<{ products: AdminProduct[]; count: number }> {
   const qs = new URLSearchParams()
   if (params?.q) qs.set("q", params.q)
+  if (params?.category_id) qs.append("category_id[]", params.category_id)
   qs.set("limit", String(params?.limit ?? 50))
   qs.set("offset", String(params?.offset ?? 0))
   qs.set("fields", "id,title,thumbnail,status,metadata,*variants,*categories")

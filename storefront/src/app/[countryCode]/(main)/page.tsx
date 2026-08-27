@@ -1,5 +1,6 @@
 import { Metadata } from "next"
 
+import AboutStore from "@modules/home/components/about-store"
 import FeaturedProducts from "@modules/home/components/featured-products"
 import Hero from "@modules/home/components/hero"
 import { listCollections } from "@lib/data/collections"
@@ -34,6 +35,8 @@ export default async function Home(props: {
           <FeaturedProducts collections={collections} region={region} />
         </ul>
       </div>
+
+      <AboutStore />
     </>
   )
 }
