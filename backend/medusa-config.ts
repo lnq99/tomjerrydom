@@ -1,5 +1,4 @@
 import { loadEnv, defineConfig } from '@medusajs/framework/utils'
-import StorefrontMediaModule from './src/modules/storefront-media'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -69,6 +68,8 @@ module.exports = defineConfig({
         }]
       : []),
 
-    StorefrontMediaModule,
+    {
+      resolve: './src/modules/storefront-media',
+    },
   ],
 })
