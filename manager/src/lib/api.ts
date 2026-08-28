@@ -164,7 +164,7 @@ export async function deleteVariant(productId: string, variantId: string): Promi
   await apiFetch(`/admin/products/${productId}/variants/${variantId}`, { method: "DELETE" })
 }
 
-export async function uploadFile(file: File): Promise<{ url: string }> {
+export async function uploadFile(file: File): Promise<{ url: string; fileId: string }> {
   const token = getToken()
   const headers: Record<string, string> = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
@@ -180,7 +180,7 @@ export async function uploadFile(file: File): Promise<{ url: string }> {
     throw new ApiError(res.status, err.message ?? res.statusText)
   }
   const data = await res.json()
-  return { url: data.files[0].url }
+  return { url: data.files[0].url, fileId: data.files[0].id }
 }
 
 export type StockLocation = { id: string; name: string }
@@ -312,6 +312,7 @@ export async function createMediaItem(data: {
   type: "video" | "image"
   url: string
   title?: string | null
+  medusa_file_id?: string | null
 }): Promise<{ item: MediaItem }> {
   return apiFetch("/admin/storefront-media", { method: "POST", body: JSON.stringify(data) })
 }

@@ -35,7 +35,7 @@ function AddItemForm({
   onAdd,
 }: {
   section: "hero" | "reels"
-  onAdd: (data: { type: "video" | "image"; url: string; title?: string }) => Promise<void>
+  onAdd: (data: { type: "video" | "image"; url: string; title?: string; medusa_file_id?: string }) => Promise<void>
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
@@ -44,7 +44,7 @@ function AddItemForm({
   // Upload state
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
-  const [uploadedFile, setUploadedFile] = useState<{ url: string; type: "video" | "image"; name: string } | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<{ url: string; fileId: string; type: "video" | "image"; name: string } | null>(null)
   const [title, setTitle] = useState("")
 
   // URL state
@@ -75,8 +75,8 @@ function AddItemForm({
     setUploadProgress(`Загрузка ${file.name}…`)
 
     try {
-      const { url } = await uploadFile(file)
-      setUploadedFile({ url, type: detectedType, name: file.name })
+      const { url, fileId } = await uploadFile(file)
+      setUploadedFile({ url, fileId, type: detectedType, name: file.name })
       setUploadProgress(null)
     } catch {
       toast.error("Ошибка при загрузке файла")
@@ -92,7 +92,7 @@ function AddItemForm({
     if (!uploadedFile) return
     setUploading(true)
     try {
-      await onAdd({ type: uploadedFile.type, url: uploadedFile.url, title: title.trim() || undefined })
+      await onAdd({ type: uploadedFile.type, url: uploadedFile.url, title: title.trim() || undefined, medusa_file_id: uploadedFile.fileId })
       reset()
     } finally {
       setUploading(false)
@@ -374,7 +374,7 @@ function MediaSection({
   const items = data?.items ?? []
 
   const addMutation = useMutation({
-    mutationFn: (d: { type: "video" | "image"; url: string; title?: string }) =>
+    mutationFn: (d: { type: "video" | "image"; url: string; title?: string; medusa_file_id?: string }) =>
       createMediaItem({ section, ...d }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["media", section] })

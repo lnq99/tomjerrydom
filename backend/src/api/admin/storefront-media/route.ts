@@ -22,6 +22,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     url: string
     title?: string | null
     position?: number
+    medusa_file_id?: string | null
   }
 
   if (!body.section || !body.type || !body.url) {
@@ -43,6 +44,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     url: body.url,
     title: body.title ?? null,
     position: body.position,
+    medusa_file_id: body.medusa_file_id ?? null,
   })
 
   res.status(201).json({ item })
