@@ -140,6 +140,12 @@ export default async function ProductPage(props: Props) {
     pricedProduct = { ...rawProduct, variants } as HttpTypes.StoreProduct
   }
 
+  const hasPrice = (pricedProduct.variants ?? []).some((v) => {
+    const amount = (v as any).calculated_price?.calculated_amount
+    return typeof amount === "number" && amount > 0
+  })
+  if (!hasPrice) notFound()
+
   const images = getImagesForVariant(pricedProduct, selectedVariantId)
 
   return (

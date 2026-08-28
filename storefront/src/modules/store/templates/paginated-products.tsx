@@ -30,6 +30,13 @@ function matchesSearch(product: HttpTypes.StoreProduct, query: string): boolean 
   return needle.length === 0 || haystack.includes(needle)
 }
 
+function hasSellingPrice(product: HttpTypes.StoreProduct): boolean {
+  return (product.variants ?? []).some((v) => {
+    const amount = (v as any).calculated_price?.calculated_amount
+    return typeof amount === "number" && amount > 0
+  })
+}
+
 function applyTierPrices(
   products: HttpTypes.StoreProduct[],
   tierPrices: Record<string, number>
@@ -116,7 +123,7 @@ export default async function PaginatedProducts({
 
   const productIds = products.map((p) => p.id).filter(Boolean) as string[]
   const tierPrices = await getTierProductPrices(tierId, productIds)
-  const pricedProducts = applyTierPrices(products, tierPrices)
+  const pricedProducts = applyTierPrices(products, tierPrices).filter(hasSellingPrice)
 
   const filtered = searchQuery
     ? pricedProducts.filter((p) => matchesSearch(p, searchQuery))

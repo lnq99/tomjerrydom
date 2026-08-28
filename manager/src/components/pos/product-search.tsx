@@ -45,13 +45,23 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
     staleTime: 30_000,
   })
 
-  const products = data?.products ?? []
-
   const priceMap = useMemo<Map<string, PricedProduct>>(() => {
     const map = new Map<string, PricedProduct>()
     for (const p of pricingData?.products ?? []) map.set(p.id, p)
     return map
   }, [pricingData])
+
+  const products = useMemo(() => {
+    return (data?.products ?? []).filter((p) => {
+      if (p.status !== "published") return false
+      // hide products with no selling price once pricingData is loaded
+      if (pricingData !== null) {
+        const price = priceMap.get(p.id)?.calculated_prices[tierId] ?? 0
+        if (price === 0) return false
+      }
+      return true
+    })
+  }, [data, pricingData, priceMap, tierId])
 
   function tierPrice(productId: string): number {
     return priceMap.get(productId)?.calculated_prices[tierId] ?? 0
