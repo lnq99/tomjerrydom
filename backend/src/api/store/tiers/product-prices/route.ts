@@ -5,7 +5,9 @@ import { getTierProfit, calcPrice } from "../_shared"
 /**
  * GET /store/tiers/product-prices
  * Query: tier_id (string), product_ids[] (string[])
- * Returns: { prices: { [variantId]: number } } — amounts in smallest currency unit (kopecks)
+ * Returns: { prices: { [variantId]: number } }
+ *   - positive number: computed price in kopecks (cost × margin)
+ *   - 0: product has no cost set — caller should suppress any price display
  */
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const tier_id = req.query.tier_id as string | undefined
@@ -33,16 +35,23 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   for (const product of products) {
     const cost: number | undefined = (product.metadata as any)?.cost
-    if (!cost) continue
+    const variants = (product as any).variants ?? []
+
+    if (!cost) {
+      // No cost set: mark all variants with 0 so the storefront suppresses
+      // any stale Medusa catalog price rather than falling back to it.
+      for (const variant of variants) {
+        if (variant?.id) prices[variant.id] = 0
+      }
+      continue
+    }
 
     const categories = (product as any).categories ?? []
     const profit = getTierProfit(categories, tier_id)
     const price = calcPrice(cost, profit)
 
-    for (const variant of (product as any).variants ?? []) {
-      if (variant?.id) {
-        prices[variant.id] = price
-      }
+    for (const variant of variants) {
+      if (variant?.id) prices[variant.id] = price
     }
   }
 

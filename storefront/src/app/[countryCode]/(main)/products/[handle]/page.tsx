@@ -127,7 +127,8 @@ export default async function ProductPage(props: Props) {
   if (Object.keys(tierPrices).length > 0) {
     const variants = rawProduct.variants?.map((v) => {
       const price = tierPrices[v.id]
-      if (!price) return v
+      if (price === undefined) return v
+      if (price === 0) return { ...v, calculated_price: null } as HttpTypes.StoreProductVariant
       const cp = (v as any).calculated_price
       return {
         ...v,

@@ -38,7 +38,10 @@ function applyTierPrices(
   return products.map((product) => {
     const variants = product.variants?.map((variant) => {
       const price = tierPrices[variant.id]
-      if (!price) return variant
+      // Not in map → product wasn't queried, keep Medusa catalog price
+      if (price === undefined) return variant
+      // price=0 means no cost set → suppress whatever Medusa catalog has
+      if (price === 0) return { ...variant, calculated_price: null } as HttpTypes.StoreProductVariant
       const cp = (variant as any).calculated_price
       return {
         ...variant,
