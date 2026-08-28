@@ -52,22 +52,8 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
 
   return (
     <div className="flex flex-col h-full border-l bg-background">
-      {/* Header */}
-      <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
-        <h2 className="font-semibold">Корзина</h2>
-        {cart.items.length > 0 && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="text-xs text-muted-foreground hover:text-destructive"
-          >
-            Очистить
-          </button>
-        )}
-      </div>
-
-      {/* Tier selector */}
-      <div className="border-b px-3 py-2 flex items-center gap-1.5 shrink-0 overflow-x-auto">
+      {/* Tier selector — mobile only (desktop has it in the products panel) */}
+      <div className="md:hidden border-b px-3 py-2 flex items-center gap-1.5 shrink-0 overflow-x-auto">
         {tiers.map((tier) => (
           <button
             key={tier.id}
@@ -83,6 +69,20 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
             {shortTierLabel(tier)}
           </button>
         ))}
+      </div>
+
+      {/* Header */}
+      <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
+        <h2 className="font-semibold">Корзина</h2>
+        {cart.items.length > 0 && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-xs text-muted-foreground hover:text-destructive"
+          >
+            Очистить
+          </button>
+        )}
       </div>
 
       {/* Items */}
