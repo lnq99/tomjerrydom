@@ -1,6 +1,7 @@
 "use client"
 
 import { selectTier, type Tier } from "@lib/data/tiers"
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
 
 function formatK(kopecks: number): string {
@@ -41,7 +42,8 @@ type Props = {
 
 export default function NavTierDropdown({ tiers, currentTierId }: Props) {
   const [open, setOpen] = useState(false)
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
+  const router = useRouter()
   const ref = useRef<HTMLDivElement>(null)
 
   const currentTier = tiers.find((t) => t.id === currentTierId) ?? tiers[0]
@@ -59,8 +61,9 @@ export default function NavTierDropdown({ tiers, currentTierId }: Props) {
 
   const handleSelect = (id: string) => {
     setOpen(false)
-    startTransition(() => {
-      selectTier(id)
+    startTransition(async () => {
+      await selectTier(id)
+      router.refresh()
     })
   }
 
@@ -71,7 +74,8 @@ export default function NavTierDropdown({ tiers, currentTierId }: Props) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 h-8 px-3 rounded-rounded border border-ui-border-base bg-ui-bg-base hover:bg-ui-bg-base-hover text-ui-fg-base whitespace-nowrap transition-colors"
+        disabled={isPending}
+        className="flex items-center gap-1.5 h-8 px-3 rounded-rounded border border-ui-border-base bg-ui-bg-base hover:bg-ui-bg-base-hover text-ui-fg-base whitespace-nowrap transition-colors disabled:opacity-60"
         aria-expanded={open}
         aria-haspopup="listbox"
       >

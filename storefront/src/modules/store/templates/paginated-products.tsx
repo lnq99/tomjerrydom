@@ -1,5 +1,7 @@
 import { listProductsWithSort } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
+import { getTierId } from "@lib/data/cookies"
+import { getTierProductPrices } from "@lib/data/tiers"
 import { OptionValueIds } from "@lib/util/product-option-filters"
 import { HttpTypes } from "@medusajs/types"
 import ProductPreview from "@modules/products/components/product-preview"
@@ -26,6 +28,27 @@ function matchesSearch(product: HttpTypes.StoreProduct, query: string): boolean 
   const haystack = normalizeSearch(brand + title)
   const needle = normalizeSearch(query)
   return needle.length === 0 || haystack.includes(needle)
+}
+
+function applyTierPrices(
+  products: HttpTypes.StoreProduct[],
+  tierPrices: Record<string, number>
+): HttpTypes.StoreProduct[] {
+  if (Object.keys(tierPrices).length === 0) return products
+  return products.map((product) => {
+    const variants = product.variants?.map((variant) => {
+      const price = tierPrices[variant.id]
+      if (!price) return variant
+      const cp = (variant as any).calculated_price
+      return {
+        ...variant,
+        calculated_price: cp
+          ? { ...cp, calculated_amount: price, original_amount: price }
+          : null,
+      } as HttpTypes.StoreProductVariant
+    }) ?? null
+    return { ...product, variants } as HttpTypes.StoreProduct
+  })
 }
 
 export default async function PaginatedProducts({
@@ -69,7 +92,10 @@ export default async function PaginatedProducts({
     queryParams["order"] = "created_at"
   }
 
-  const region = await getRegion(countryCode)
+  const [region, tierId] = await Promise.all([
+    getRegion(countryCode),
+    getTierId(),
+  ])
 
   if (!region) {
     return null
@@ -85,9 +111,13 @@ export default async function PaginatedProducts({
     optionValueIds,
   })
 
+  const productIds = products.map((p) => p.id).filter(Boolean) as string[]
+  const tierPrices = await getTierProductPrices(tierId, productIds)
+  const pricedProducts = applyTierPrices(products, tierPrices)
+
   const filtered = searchQuery
-    ? products.filter((p) => matchesSearch(p, searchQuery))
-    : products
+    ? pricedProducts.filter((p) => matchesSearch(p, searchQuery))
+    : pricedProducts
 
   const totalPages = searchQuery ? 1 : Math.ceil(count / PRODUCT_LIMIT)
 

@@ -2,6 +2,8 @@ import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { listProducts } from "@lib/data/products"
 import { getRegion, listRegions } from "@lib/data/regions"
+import { getTierId } from "@lib/data/cookies"
+import { getTierProductPrices } from "@lib/data/tiers"
 import ProductTemplate from "@modules/products/templates"
 import { HttpTypes } from "@medusajs/types"
 
@@ -109,13 +111,32 @@ export default async function ProductPage(props: Props) {
     notFound()
   }
 
-  const pricedProduct = await listProducts({
-    countryCode: params.countryCode,
-    queryParams: { handle: params.handle },
-  }).then(({ response }) => response.products[0])
+  const [{ response }, tierId] = await Promise.all([
+    listProducts({ countryCode: params.countryCode, queryParams: { handle: params.handle } }),
+    getTierId(),
+  ])
+  const rawProduct = response.products[0]
 
-  if (!pricedProduct) {
+  if (!rawProduct) {
     notFound()
+  }
+
+  const tierPrices = await getTierProductPrices(tierId, rawProduct.id ? [rawProduct.id] : [])
+
+  let pricedProduct: HttpTypes.StoreProduct = rawProduct
+  if (Object.keys(tierPrices).length > 0) {
+    const variants = rawProduct.variants?.map((v) => {
+      const price = tierPrices[v.id]
+      if (!price) return v
+      const cp = (v as any).calculated_price
+      return {
+        ...v,
+        calculated_price: cp
+          ? { ...cp, calculated_amount: price, original_amount: price }
+          : null,
+      } as HttpTypes.StoreProductVariant
+    }) ?? null
+    pricedProduct = { ...rawProduct, variants } as HttpTypes.StoreProduct
   }
 
   const images = getImagesForVariant(pricedProduct, selectedVariantId)

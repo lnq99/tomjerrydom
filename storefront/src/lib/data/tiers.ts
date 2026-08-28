@@ -91,3 +91,30 @@ export async function getCurrentTier(tiers: Tier[]): Promise<Tier> {
   const tierId = await getTierId()
   return tiers.find((t) => t.id === tierId) ?? tiers[0]
 }
+
+/**
+ * Fetch tier-adjusted prices for the given products.
+ * Returns a map of variantId → price in kopecks.
+ * Returns {} for retail tier or when products have no cost metadata.
+ */
+export async function getTierProductPrices(
+  tierId: string,
+  productIds: string[]
+): Promise<Record<string, number>> {
+  if (tierId === "retail" || productIds.length === 0) return {}
+  try {
+    const BASE = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000"
+    const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ""
+    const params = new URLSearchParams({ tier_id: tierId })
+    productIds.forEach((id) => params.append("product_ids[]", id))
+    const res = await fetch(`${BASE}/store/tiers/product-prices?${params.toString()}`, {
+      headers: { "x-publishable-api-key": PUB_KEY },
+      cache: "no-store",
+    })
+    if (!res.ok) return {}
+    const data = await res.json()
+    return data.prices ?? {}
+  } catch {
+    return {}
+  }
+}
