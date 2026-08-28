@@ -291,3 +291,37 @@ export async function saveProductCosts(
 export async function syncPrices(): Promise<{ updated: number; created: number; skipped: number }> {
   return apiFetch("/admin/pricing-config/sync", { method: "POST" })
 }
+
+// ── Storefront Media ─────────────────────────────────────────────────────────
+export type MediaItem = {
+  id: string
+  section: "hero" | "reels"
+  type: "video" | "image"
+  url: string
+  title: string | null
+  position: number
+}
+
+export async function listMediaItems(section?: "hero" | "reels"): Promise<{ items: MediaItem[] }> {
+  const qs = section ? `?section=${section}` : ""
+  return apiFetch(`/admin/storefront-media${qs}`)
+}
+
+export async function createMediaItem(data: {
+  section: "hero" | "reels"
+  type: "video" | "image"
+  url: string
+  title?: string | null
+}): Promise<{ item: MediaItem }> {
+  return apiFetch("/admin/storefront-media", { method: "POST", body: JSON.stringify(data) })
+}
+
+export async function deleteMediaItem(id: string): Promise<void> {
+  await apiFetch(`/admin/storefront-media/${id}`, { method: "DELETE" })
+}
+
+export async function reorderMediaItems(
+  items: { id: string; position: number }[]
+): Promise<void> {
+  await apiFetch("/admin/storefront-media/reorder", { method: "POST", body: JSON.stringify({ items }) })
+}

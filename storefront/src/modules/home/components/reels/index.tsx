@@ -3,18 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLandingTheme } from "@lib/landing-theme"
 
-const BASE = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample"
+const SAMPLE_BASE = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample"
 
-const REELS = [
-  { id: 1, src: `${BASE}/ForBiggerBlazes.mp4` },
-  { id: 2, src: `${BASE}/ForBiggerEscapes.mp4` },
-  { id: 3, src: `${BASE}/ForBiggerJoyrides.mp4` },
-  { id: 4, src: `${BASE}/ForBiggerMeltdowns.mp4` },
-  { id: 5, src: `${BASE}/ForBiggerBlazes.mp4` },
+const FALLBACK_REELS = [
+  { id: "1", src: `${SAMPLE_BASE}/ForBiggerBlazes.mp4` },
+  { id: "2", src: `${SAMPLE_BASE}/ForBiggerEscapes.mp4` },
+  { id: "3", src: `${SAMPLE_BASE}/ForBiggerJoyrides.mp4` },
 ]
 
 export default function Reels() {
-  const { theme } = useLandingTheme()
+  const { theme, reelItems } = useLandingTheme()
+  const reels = reelItems.length > 0 ? reelItems : FALLBACK_REELS
   const [active, setActive] = useState(0)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -33,7 +32,7 @@ export default function Reels() {
   }, [active])
 
   const handleEnded = useCallback(() => {
-    setActive((prev) => (prev + 1) % REELS.length)
+    setActive((prev) => (prev + 1) % reels.length)
   }, [])
 
   return (
@@ -49,13 +48,13 @@ export default function Reels() {
           <div className="h-px flex-1" style={{ background: theme.indicatorInactive }} />
           <span className="text-[10px] tracking-[0.18em] uppercase font-sans shrink-0"
             style={{ color: theme.eyebrowColor }}>
-            {active + 1} / {REELS.length}
+            {active + 1} / {reels.length}
           </span>
         </div>
       </div>
 
       <div className="flex gap-3 overflow-x-auto px-4 small:px-8 pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {REELS.map((reel, i) => (
+        {reels.map((reel, i) => (
           <div key={reel.id} ref={(el) => { cardRefs.current[i] = el }} className="shrink-0" style={{ width: "168px" }}>
             <button
               type="button"
@@ -105,7 +104,7 @@ export default function Reels() {
 
       {/* Dot indicators */}
       <div className="flex justify-center gap-1.5 mt-5 pb-12">
-        {REELS.map((_, i) => (
+        {reels.map((_, i) => (
           <button
             key={i}
             type="button"

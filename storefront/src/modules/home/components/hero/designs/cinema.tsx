@@ -6,12 +6,12 @@
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { useLandingTheme } from "@lib/landing-theme"
-import { useMediaCarousel, slides } from "@lib/use-media-carousel"
+import { useMediaCarousel } from "@lib/use-media-carousel"
 import { useHeroMouse } from "@lib/use-hero-mouse"
 
 export default function DiagonalHero() {
-  const { theme } = useLandingTheme()
-  const { active, setActive, animKey, setAnimKey, videoRefs, advance } = useMediaCarousel()
+  const { theme, heroSlides } = useLandingTheme()
+  const { slides, active, setActive, animKey, setAnimKey, videoRefs, advance } = useMediaCarousel(heroSlides)
   const { onMouseMove, onMouseLeave, parallaxStyle, glowStyle } = useHeroMouse()
 
   const scrollToAbout = () =>

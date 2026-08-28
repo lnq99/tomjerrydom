@@ -1,6 +1,8 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect } from "react"
+import type { Slide } from "@lib/use-media-carousel"
+import type { ReelItem } from "@lib/data/storefront-media"
 
 export type DesignKey = "cinema" | "razvorot" | "afisha" | "sloy"
 
@@ -114,15 +116,27 @@ interface LandingThemeCtx {
   theme: LandingTheme
   themeIndex: number
   cycle: () => void
+  heroSlides: Slide[]
+  reelItems: ReelItem[]
 }
 
 const LandingThemeContext = createContext<LandingThemeCtx>({
   theme: themes[0],
   themeIndex: 0,
   cycle: () => {},
+  heroSlides: [],
+  reelItems: [],
 })
 
-export function LandingThemeProvider({ children }: { children: React.ReactNode }) {
+export function LandingThemeProvider({
+  children,
+  heroSlides = [],
+  reelItems = [],
+}: {
+  children: React.ReactNode
+  heroSlides?: Slide[]
+  reelItems?: ReelItem[]
+}) {
   const [themeIndex, setThemeIndex] = useState(0)
 
   useEffect(() => {
@@ -142,7 +156,7 @@ export function LandingThemeProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <LandingThemeContext.Provider value={{ theme: themes[themeIndex], themeIndex, cycle }}>
+    <LandingThemeContext.Provider value={{ theme: themes[themeIndex], themeIndex, cycle, heroSlides, reelItems }}>
       {children}
     </LandingThemeContext.Provider>
   )

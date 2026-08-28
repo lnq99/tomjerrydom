@@ -7,6 +7,7 @@ import LandingShell from "@modules/home/components/landing-shell"
 import Reels from "@modules/home/components/reels"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
+import { getStorefrontMedia } from "@lib/data/storefront-media"
 
 export const metadata: Metadata = {
   title: "Tom&Jerry Дом",
@@ -19,9 +20,10 @@ export default async function Home(props: {
   const params = await props.params
   const { countryCode } = params
 
-  const [region, { collections }] = await Promise.all([
+  const [region, { collections }, { heroSlides, reelItems }] = await Promise.all([
     getRegion(countryCode),
     listCollections({ fields: "id, handle, title" }),
+    getStorefrontMedia(),
   ])
 
   if (!collections || !region) {
@@ -29,7 +31,7 @@ export default async function Home(props: {
   }
 
   return (
-    <LandingShell>
+    <LandingShell heroSlides={heroSlides} reelItems={reelItems}>
       <FeaturedProductsSection>
         <ul className="flex flex-col gap-x-6">
           <FeaturedProducts collections={collections} region={region} />
