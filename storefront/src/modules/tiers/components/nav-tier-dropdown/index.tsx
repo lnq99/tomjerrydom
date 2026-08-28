@@ -13,6 +13,14 @@ function formatK(kopecks: number): string {
   return `${Math.round(rubles)} ₽`
 }
 
+function formatShortTier(tier: Tier): string {
+  if (tier.min_order_amount === 0) return tier.label
+  const k = Math.round(tier.min_order_amount / 100 / 1000)
+  const amount = k > 0 ? `${k}к` : `${Math.round(tier.min_order_amount / 100)}₽`
+  const firstWord = tier.label.split(/\s+/)[0]
+  return `${firstWord} ${amount}`
+}
+
 function tierRange(tiers: Tier[], tier: Tier): string {
   const sorted = [...tiers].sort((a, b) => a.sort_order - b.sort_order)
   const idx = sorted.findIndex((t) => t.id === tier.id)
@@ -67,7 +75,7 @@ export default function NavTierDropdown({ tiers, currentTierId }: Props) {
         aria-expanded={open}
         aria-haspopup="listbox"
       >
-        <span className="txt-compact-small-plus">{currentTier.label}</span>
+        <span className="txt-compact-small-plus">{formatShortTier(currentTier)}</span>
         {range && (
           <span className="txt-xsmall text-ui-fg-muted hidden medium:inline">
             {range}

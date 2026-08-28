@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ShoppingCart, ClipboardList, Package, BarChart2, Settings, LogOut, LayoutList, Clapperboard } from "lucide-react"
+import { ShoppingCart, ClipboardList, Package, BarChart2, Settings, LogOut, LayoutList, Clapperboard, UserCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { clearToken } from "@/lib/api"
 
@@ -53,7 +53,19 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-2 py-4 border-t">
+      <div className="px-2 py-4 border-t space-y-1">
+        <Link
+          href="/profile"
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            pathname.startsWith("/profile")
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+        >
+          <UserCircle className="h-4 w-4 shrink-0" />
+          Профиль
+        </Link>
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"

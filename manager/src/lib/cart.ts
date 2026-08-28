@@ -1,10 +1,12 @@
 export type LineItem = {
   variantId: string
+  productId: string
   variantTitle: string
   productTitle: string
   thumbnail: string | null
   unitPrice: number
   quantity: number
+  manualPrice?: boolean
 }
 
 export type Cart = { items: LineItem[] }
@@ -41,8 +43,19 @@ export function setQty(cart: Cart, variantId: string, quantity: number): Cart {
 export function setPrice(cart: Cart, variantId: string, unitPrice: number): Cart {
   return {
     items: cart.items.map((i) =>
-      i.variantId === variantId ? { ...i, unitPrice: Math.max(0, unitPrice) } : i
+      i.variantId === variantId ? { ...i, unitPrice: Math.max(0, unitPrice), manualPrice: true } : i
     ),
+  }
+}
+
+/** Re-price all non-manual items using productId → price map */
+export function retierItems(cart: Cart, priceMap: Map<string, number>): Cart {
+  return {
+    items: cart.items.map((i) => {
+      if (i.manualPrice) return i
+      const p = priceMap.get(i.productId)
+      return p !== undefined ? { ...i, unitPrice: p } : i
+    }),
   }
 }
 

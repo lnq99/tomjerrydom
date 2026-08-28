@@ -1,14 +1,10 @@
 "use client"
 
 import { Popover, PopoverPanel, Transition } from "@headlessui/react"
-import useToggleState from "@lib/hooks/use-toggle-state"
-import { ArrowRightMini, XMark } from "@medusajs/icons"
+import { XMark } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { Text, clx } from "@modules/common/components/ui"
 import { Fragment } from "react"
-import CountrySelect from "../country-select"
-import LanguageSelect from "../language-select"
 import { Locale } from "@lib/data/locales"
 
 const SideMenuItems = {
@@ -25,10 +21,7 @@ type SideMenuProps = {
   categories?: HttpTypes.StoreProductCategory[]
 }
 
-const SideMenu = ({ regions, locales, currentLocale, categories = [] }: SideMenuProps) => {
-  const countryToggleState = useToggleState()
-  const languageToggleState = useToggleState()
-
+const SideMenu = ({ categories = [] }: SideMenuProps) => {
   return (
     <div className="h-full">
       <div className="flex items-center h-full">
@@ -62,91 +55,52 @@ const SideMenu = ({ regions, locales, currentLocale, categories = [] }: SideMenu
                 leaveFrom="opacity-100 backdrop-blur-2xl"
                 leaveTo="opacity-0"
               >
-                <PopoverPanel className="flex flex-col absolute w-full pr-4 sm:pr-0 sm:w-1/3 2xl:w-1/4 sm:min-w-min h-[calc(100vh-1rem)] z-[51] inset-x-0 text-sm text-ui-fg-on-color m-2 backdrop-blur-2xl">
+                <PopoverPanel className="flex flex-col fixed inset-2 sm:right-auto sm:w-1/3 2xl:w-1/4 sm:min-w-min z-[51] text-sm text-ui-fg-on-color backdrop-blur-2xl">
                   <div
                     data-testid="nav-menu-popup"
-                    className="flex flex-col h-full bg-[rgba(3,7,18,0.5)] rounded-rounded justify-between p-6"
+                    className="flex flex-col h-full bg-[rgba(3,7,18,0.5)] rounded-rounded p-6"
                   >
-                    <div className="flex justify-end" id="xmark">
+                    <div className="flex justify-end mb-4" id="xmark">
                       <button data-testid="close-menu-button" onClick={close}>
                         <XMark />
                       </button>
                     </div>
-                    <ul className="flex flex-col gap-6 items-start justify-start">
-                      {Object.entries(SideMenuItems).map(([name, href]) => (
-                        <li key={name}>
-                          <LocalizedClientLink
-                            href={href}
-                            className="text-3xl leading-10 hover:text-ui-fg-disabled"
-                            onClick={close}
-                            data-testid={`${name.toLowerCase()}-link`}
-                          >
-                            {name}
-                          </LocalizedClientLink>
-                        </li>
-                      ))}
-                      {categories.length > 0 && (
-                        <li>
-                          <div className="border-t border-white/10 pt-6">
-                            <p className="text-xs uppercase tracking-widest text-white/40 mb-4">Категории</p>
-                            <ul className="flex flex-col gap-4">
-                              {categories.map((cat) => (
-                                <li key={cat.id}>
-                                  <LocalizedClientLink
-                                    href={`/categories/${cat.handle}`}
-                                    className="text-xl leading-8 hover:text-ui-fg-disabled"
-                                    onClick={close}
-                                  >
-                                    {cat.name}
-                                  </LocalizedClientLink>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </li>
-                      )}
-                    </ul>
-                    <div className="flex flex-col gap-y-6">
-                      {!!locales?.length && (
-                        <div
-                          className="flex justify-between"
-                          onMouseEnter={languageToggleState.open}
-                          onMouseLeave={languageToggleState.close}
-                        >
-                          <LanguageSelect
-                            toggleState={languageToggleState}
-                            locales={locales}
-                            currentLocale={currentLocale}
-                          />
-                          <ArrowRightMini
-                            className={clx(
-                              "transition-transform duration-150",
-                              languageToggleState.state ? "-rotate-90" : ""
-                            )}
-                          />
-                        </div>
-                      )}
-                      <div
-                        className="flex justify-between"
-                        onMouseEnter={countryToggleState.open}
-                        onMouseLeave={countryToggleState.close}
-                      >
-                        {regions && (
-                          <CountrySelect
-                            toggleState={countryToggleState}
-                            regions={regions}
-                          />
+
+                    <div className="flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      <ul className="flex flex-col gap-6 items-start pb-6">
+                        {Object.entries(SideMenuItems).map(([name, href]) => (
+                          <li key={name}>
+                            <LocalizedClientLink
+                              href={href}
+                              className="text-3xl leading-10 hover:text-ui-fg-disabled"
+                              onClick={close}
+                              data-testid={`${name.toLowerCase()}-link`}
+                            >
+                              {name}
+                            </LocalizedClientLink>
+                          </li>
+                        ))}
+                        {categories.length > 0 && (
+                          <li className="w-full">
+                            <div className="border-t border-white/10 pt-6">
+                              <p className="text-xs uppercase tracking-widest text-white/40 mb-4">Категории</p>
+                              <ul className="flex flex-col gap-4">
+                                {categories.map((cat) => (
+                                  <li key={cat.id}>
+                                    <LocalizedClientLink
+                                      href={`/categories/${cat.handle}`}
+                                      className="text-xl leading-8 hover:text-ui-fg-disabled"
+                                      onClick={close}
+                                    >
+                                      {cat.name}
+                                    </LocalizedClientLink>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </li>
                         )}
-                        <ArrowRightMini
-                          className={clx(
-                            "transition-transform duration-150",
-                            countryToggleState.state ? "-rotate-90" : ""
-                          )}
-                        />
-                      </div>
-                      <Text className="flex justify-between txt-compact-small">
-                        © {new Date().getFullYear()} Tom&amp;Jerry Дом. Все права защищены.
-                      </Text>
+                      </ul>
                     </div>
                   </div>
                 </PopoverPanel>

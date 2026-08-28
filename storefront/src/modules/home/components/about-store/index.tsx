@@ -34,7 +34,7 @@ export default function AboutStore() {
                 🐱 Tom&amp;Jerry Дом.
               </p>
               <p className="text-sm leading-relaxed" style={{ color: theme.bodyColor }}>
-                Tom&amp;Jerry Дом — ваш надёжный магазин вейп-продукции. Широкий ассортимент, честные цены, быстрая доставка.
+                Вейп-продукция в Москве. Широкий ассортимент, честные цены, быстрая доставка.
               </p>
             </div>
 

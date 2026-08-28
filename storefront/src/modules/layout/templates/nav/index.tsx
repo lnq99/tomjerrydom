@@ -3,15 +3,12 @@ import { Suspense } from "react"
 import { listLocales } from "@lib/data/locales"
 import { getLocale } from "@lib/data/locale-actions"
 import { listRegions } from "@lib/data/regions"
-import { listTiers } from "@lib/data/tiers"
-import { getTierId } from "@lib/data/cookies"
 import { listCategories } from "@lib/data/categories"
 import { StoreRegion } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CartButton from "@modules/layout/components/cart-button"
 import SearchBox from "@modules/layout/components/search-box"
 import SideMenu from "@modules/layout/components/side-menu"
-import NavTierDropdown from "@modules/tiers/components/nav-tier-dropdown"
 import { HttpTypes } from "@medusajs/types"
 
 function CartIcon({ count }: { count: number }) {
@@ -58,12 +55,10 @@ function CategoryBar({ categories }: { categories: HttpTypes.StoreProductCategor
 }
 
 export default async function Nav() {
-  const [regions, locales, currentLocale, tiers, currentTierId, allCategories] = await Promise.all([
+  const [regions, locales, currentLocale, allCategories] = await Promise.all([
     listRegions().then((regions: StoreRegion[]) => regions),
     listLocales(),
     getLocale(),
-    listTiers(),
-    getTierId(),
     listCategories({ fields: "id,name,handle,parent_category_id", limit: 50 }),
   ])
 
@@ -80,11 +75,6 @@ export default async function Nav() {
                 categories={allCategories.filter((c) => !c.parent_category_id)}
               />
             </div>
-            {tiers.length > 1 && (
-              <div className="hidden small:block">
-                <NavTierDropdown tiers={tiers} currentTierId={currentTierId} />
-              </div>
-            )}
           </div>
 
           <div className="flex items-center h-full">

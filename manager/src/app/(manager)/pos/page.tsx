@@ -14,7 +14,7 @@ import { ProductSearch } from "@/components/pos/product-search"
 import { CartPanel } from "@/components/pos/cart-panel"
 import { getPricingConfig } from "@/lib/api"
 import {
-  emptyCart, addItem, removeItem, setQty, setPrice, cartTotal,
+  emptyCart, addItem, removeItem, setQty, setPrice, retierItems, cartTotal,
   type Cart, type LineItem,
 } from "@/lib/cart"
 
@@ -23,6 +23,7 @@ type Action =
   | { type: "REMOVE"; variantId: string }
   | { type: "QTY"; variantId: string; quantity: number }
   | { type: "PRICE"; variantId: string; unitPrice: number }
+  | { type: "RETIER"; prices: Map<string, number> }
   | { type: "CLEAR" }
 
 function reducer(state: Cart, action: Action): Cart {
@@ -31,6 +32,7 @@ function reducer(state: Cart, action: Action): Cart {
     case "REMOVE": return removeItem(state, action.variantId)
     case "QTY": return setQty(state, action.variantId, action.quantity)
     case "PRICE": return setPrice(state, action.variantId, action.unitPrice)
+    case "RETIER": return retierItems(state, action.prices)
     case "CLEAR": return emptyCart
   }
 }
@@ -58,59 +60,74 @@ export default function PosPage() {
     setTab("cart")
   }, [])
 
+  function handleTierChange(newTierId: string) {
+    setTierId(newTierId)
+    const priceMap = new Map<string, number>()
+    for (const prod of pricingData?.products ?? []) {
+      priceMap.set(prod.id, prod.calculated_prices[newTierId] ?? 0)
+    }
+    dispatch({ type: "RETIER", prices: priceMap })
+  }
+
   return (
-    <div className="flex h-[calc(100dvh-0px)] md:h-screen flex-col md:flex-row">
-      {/* Products panel */}
-      <div className={cn(
-        "flex-1 flex flex-col overflow-hidden",
-        tab === "cart" ? "hidden md:flex" : "flex"
-      )}>
-        {/* Tier selector */}
-        <div className="border-b px-3 py-2 flex items-center gap-1.5 shrink-0 overflow-x-auto">
-          {tiers.map((tier) => (
-            <button
-              key={tier.id}
-              type="button"
-              onClick={() => setTierId(tier.id)}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium border whitespace-nowrap transition-colors",
-                tierId === tier.id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:bg-accent"
-              )}
-            >
-              {shortTierLabel(tier)}
-            </button>
-          ))}
+    <div className="flex h-full flex-col">
+      {/* Main content */}
+      <div className="flex flex-1 overflow-hidden md:flex-row flex-col">
+        {/* Products panel */}
+        <div className={cn(
+          "flex-1 flex flex-col overflow-hidden",
+          tab === "cart" ? "hidden md:flex" : "flex"
+        )}>
+          {/* Tier selector */}
+          <div className="border-b px-3 py-2 flex items-center gap-1.5 shrink-0 overflow-x-auto">
+            {tiers.map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={() => handleTierChange(tier.id)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium border whitespace-nowrap transition-colors",
+                  tierId === tier.id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:bg-accent"
+                )}
+              >
+                {shortTierLabel(tier)}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-hidden p-3">
+            <ProductSearch
+              tierId={tierId}
+              tiers={tiers}
+              pricingData={pricingData ?? null}
+              onAddItem={handleAdd}
+            />
+          </div>
         </div>
 
-        <div className="flex-1 overflow-hidden p-3">
-          <ProductSearch
+        {/* Cart panel */}
+        <div className={cn(
+          "md:w-80 xl:w-96 md:shrink-0 md:flex md:flex-col h-full",
+          tab === "products" ? "hidden md:flex" : "flex flex-col flex-1"
+        )}>
+          <CartPanel
+            cart={cart}
+            total={total}
             tierId={tierId}
             tiers={tiers}
-            pricingData={pricingData ?? null}
-            onAddItem={handleAdd}
+            onTierChange={handleTierChange}
+            onSetQty={(id, qty) => dispatch({ type: "QTY", variantId: id, quantity: qty })}
+            onSetPrice={(id, price) => dispatch({ type: "PRICE", variantId: id, unitPrice: price })}
+            onRemove={(id) => dispatch({ type: "REMOVE", variantId: id })}
+            onClear={() => dispatch({ type: "CLEAR" })}
           />
         </div>
       </div>
 
-      {/* Cart panel */}
-      <div className={cn(
-        "md:w-80 xl:w-96 md:shrink-0 md:flex md:flex-col h-full",
-        tab === "products" ? "hidden md:flex" : "flex flex-col flex-1"
-      )}>
-        <CartPanel
-          cart={cart}
-          total={total}
-          onSetQty={(id, qty) => dispatch({ type: "QTY", variantId: id, quantity: qty })}
-          onSetPrice={(id, price) => dispatch({ type: "PRICE", variantId: id, unitPrice: price })}
-          onRemove={(id) => dispatch({ type: "REMOVE", variantId: id })}
-          onClear={() => dispatch({ type: "CLEAR" })}
-        />
-      </div>
-
-      {/* Mobile tab bar */}
-      <div className="md:hidden fixed bottom-16 inset-x-0 border-t bg-background flex z-20">
+      {/* Mobile tab bar — static in flex column, no overlap */}
+      <div className="md:hidden border-t bg-background flex shrink-0">
         <button
           type="button"
           onClick={() => setTab("products")}

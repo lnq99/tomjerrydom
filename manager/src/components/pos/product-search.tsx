@@ -64,6 +64,7 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
   function addVariant(product: AdminProduct, variant: AdminVariant, qty = 1) {
     onAddItem({
       variantId: variant.id,
+      productId: product.id,
       variantTitle: variant.title,
       productTitle: product.title,
       thumbnail: product.thumbnail,
