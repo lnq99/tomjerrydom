@@ -17,7 +17,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       ? [raw as string]
       : []
 
-  if (!tier_id || tier_id === "retail" || productIds.length === 0) {
+  if (!tier_id || productIds.length === 0) {
     return res.json({ prices: {} })
   }
 

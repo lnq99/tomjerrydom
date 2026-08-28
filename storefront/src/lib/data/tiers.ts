@@ -95,13 +95,14 @@ export async function getCurrentTier(tiers: Tier[]): Promise<Tier> {
 /**
  * Fetch tier-adjusted prices for the given products.
  * Returns a map of variantId → price in kopecks.
- * Returns {} for retail tier or when products have no cost metadata.
+ * Always computed from product cost + tier profit margins, for all tiers including retail.
+ * Returns {} when products have no cost metadata.
  */
 export async function getTierProductPrices(
   tierId: string,
   productIds: string[]
 ): Promise<Record<string, number>> {
-  if (tierId === "retail" || productIds.length === 0) return {}
+  if (productIds.length === 0) return {}
   try {
     const BASE = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000"
     const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ""
