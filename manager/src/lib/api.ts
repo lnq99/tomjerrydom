@@ -231,6 +231,36 @@ export async function updateCategory(
   await apiFetch(`/admin/product-categories/${id}`, { method: "POST", body: JSON.stringify(data) })
 }
 
+// ── POS Orders ───────────────────────────────────────────────────────────────
+export type PosOrderItem = {
+  variantId?: string
+  title: string
+  variantTitle?: string
+  quantity: number
+  unitPrice: number
+}
+
+export type PosOrder = {
+  id: string
+  display_id: number
+  status: string
+  total: number
+  created_at: string
+}
+
+export async function createPosOrder(payload: {
+  items: PosOrderItem[]
+  total: number
+  tierId?: string
+  mode?: "sell" | "order"
+}): Promise<{ order: PosOrder }> {
+  return apiFetch("/admin/pos-orders", { method: "POST", body: JSON.stringify(payload) })
+}
+
+export async function cancelPosOrder(id: string): Promise<void> {
+  await apiFetch(`/admin/pos-orders?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+}
+
 // ── Orders ───────────────────────────────────────────────────────────────────
 export type AdminOrder = {
   id: string

@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Minus, Plus, Trash2, Pencil, Check, QrCode, Phone, Settings } from "lucide-react"
+import { Minus, Plus, Trash2, Pencil, Check, QrCode, Phone, Settings, CheckCircle, Printer, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { formatRub, toKopecks, rubles, cn } from "@/lib/utils"
 import { getBankingDetails, type BankingDetails } from "@/lib/banking-details"
+import { createPosOrder, cancelPosOrder, type PosOrder } from "@/lib/api"
 import type { Cart, LineItem } from "@/lib/cart"
 
 type Tier = { id: string; label: string; min_order_amount: number }
@@ -16,7 +17,7 @@ type Tier = { id: string; label: string; min_order_amount: number }
 function shortTierLabel(tier: Tier): string {
   if (tier.min_order_amount === 0) return tier.label
   const r = tier.min_order_amount / 100
-  return `Опт ${r >= 1000 ? `${Math.round(r / 1000)}к` : r}`
+  return `Sỉ ${r >= 1000 ? `${Math.round(r / 1000)}k` : r}`
 }
 
 type Props = {
@@ -31,28 +32,98 @@ type Props = {
   onClear: () => void
 }
 
+type SaleResult = {
+  order: PosOrder
+  cart: Cart
+  total: number
+}
+
 export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, onSetPrice, onRemove, onClear }: Props) {
   const [bankingOpen, setBankingOpen] = useState(false)
   const [banking, setBanking] = useState<BankingDetails>({ name: "", phone: "", qrUrl: "" })
+  const [selling, setSelling] = useState(false)
+  const [ordering, setOrdering] = useState(false)
+  const [saleResult, setSaleResult] = useState<SaleResult | null>(null)
+  const [receiptOpen, setReceiptOpen] = useState(false)
 
   useEffect(() => {
     setBanking(getBankingDetails())
   }, [bankingOpen])
 
-  function handleSell() {
-    if (cart.items.length === 0) return
-    toast.success(`Продажа на ${formatRub(total)} проведена`)
-    onClear()
+  async function handleSell() {
+    if (cart.items.length === 0 || selling) return
+    setSelling(true)
+    try {
+      const result = await createPosOrder({
+        items: cart.items.map((i) => ({
+          variantId: i.variantId,
+          title: i.productTitle,
+          variantTitle: i.variantTitle !== i.productTitle ? i.variantTitle : undefined,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        })),
+        total,
+        tierId,
+        mode: "sell",
+      })
+      setSaleResult({ order: result.order, cart, total })
+      onClear()
+    } catch (e: any) {
+      toast.error(e?.message ?? "Ошибка при создании заказа")
+    } finally {
+      setSelling(false)
+    }
   }
 
-  function handleCreateOrder() {
-    if (cart.items.length === 0) return
-    toast.info("Создание заказов — следующая фаза")
+  async function handleCreateOrder() {
+    if (cart.items.length === 0 || ordering) return
+    setOrdering(true)
+    try {
+      const result = await createPosOrder({
+        items: cart.items.map((i) => ({
+          variantId: i.variantId,
+          title: i.productTitle,
+          variantTitle: i.variantTitle !== i.productTitle ? i.variantTitle : undefined,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        })),
+        total,
+        tierId,
+        mode: "order",
+      })
+      onClear()
+      toast.success(`Заказ #${result.order.display_id} создан`)
+    } catch (e: any) {
+      toast.error(e?.message ?? "Ошибка при создании заказа")
+    } finally {
+      setOrdering(false)
+    }
   }
 
   return (
-    <div className="flex flex-col h-full border-l bg-background">
-      {/* Tier selector — mobile only (desktop has it in the products panel) */}
+    <div className="flex flex-col h-full border-l bg-background relative">
+      {/* Success overlay */}
+      {saleResult && (
+        <SaleSuccessOverlay
+          result={saleResult}
+          onDone={() => setSaleResult(null)}
+          onReceipt={() => setReceiptOpen(true)}
+        />
+      )}
+
+      {/* Receipt dialog */}
+      {saleResult && (
+        <ReceiptDialog
+          open={receiptOpen}
+          onClose={() => setReceiptOpen(false)}
+          order={saleResult.order}
+          items={saleResult.cart.items}
+          total={saleResult.total}
+          banking={banking}
+        />
+      )}
+
+      {/* Tier selector — mobile only */}
       <div className="md:hidden border-b px-3 py-2 flex items-center gap-1.5 shrink-0 overflow-x-auto">
         {tiers.map((tier) => (
           <button
@@ -73,14 +144,14 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
 
       {/* Header */}
       <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
-        <h2 className="font-semibold">Корзина</h2>
+        <h2 className="font-semibold">Giỏ hàng</h2>
         {cart.items.length > 0 && (
           <button
             type="button"
             onClick={onClear}
             className="text-xs text-muted-foreground hover:text-destructive"
           >
-            Очистить
+            Xóa giỏ
           </button>
         )}
       </div>
@@ -89,7 +160,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
       <div className="flex-1 overflow-y-auto">
         {cart.items.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-            Корзина пуста
+            Giỏ hàng trống
           </div>
         ) : (
           <ul className="divide-y">
@@ -109,30 +180,28 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
       {/* Footer */}
       <div className="border-t px-4 py-4 space-y-2.5 shrink-0">
         <div className="flex items-center justify-between">
-          <span className="font-medium">Итого</span>
+          <span className="font-medium">Tổng cộng</span>
           <span className="text-xl font-bold">{formatRub(total)}</span>
         </div>
 
-        {/* Row 1: primary sell button */}
         <Button
           size="lg"
           className="w-full"
-          disabled={cart.items.length === 0}
+          disabled={cart.items.length === 0 || selling}
           onClick={handleSell}
         >
-          Продать
+          {selling ? "Đang xử lý..." : "Bán"}
         </Button>
 
-        {/* Row 2: two secondary buttons */}
         <div className="grid grid-cols-2 gap-2">
           <Button
             size="sm"
             variant="outline"
             className="w-full"
-            disabled={cart.items.length === 0}
+            disabled={cart.items.length === 0 || ordering}
             onClick={handleCreateOrder}
           >
-            Создать заказ
+            {ordering ? "..." : "Tạo đơn hàng"}
           </Button>
           <Button
             size="sm"
@@ -141,7 +210,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
             onClick={() => setBankingOpen(true)}
           >
             <QrCode className="h-3.5 w-3.5" />
-            Реквизиты
+            Thanh toán
           </Button>
         </div>
       </div>
@@ -154,6 +223,193 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         banking={banking}
       />
     </div>
+  )
+}
+
+// ── Sale success overlay ──────────────────────────────────────────────────────
+
+const UNDO_SECONDS = 3
+
+function SaleSuccessOverlay({
+  result,
+  onDone,
+  onReceipt,
+}: {
+  result: SaleResult
+  onDone: () => void
+  onReceipt: () => void
+}) {
+  const [countdown, setCountdown] = useState(UNDO_SECONDS)
+  const [undoing, setUndoing] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(timerRef.current!)
+          return 0
+        }
+        return c - 1
+      })
+    }, 1000)
+    return () => clearInterval(timerRef.current!)
+  }, [])
+
+  async function handleUndo() {
+    if (undoing) return
+    setUndoing(true)
+    clearInterval(timerRef.current!)
+    try {
+      await cancelPosOrder(result.order.id)
+      toast.success("Продажа отменена")
+      onDone()
+    } catch (e: any) {
+      toast.error(e?.message ?? "Не удалось отменить")
+      setUndoing(false)
+    }
+  }
+
+  return (
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-background/95 backdrop-blur-sm p-6">
+      <CheckCircle className="h-16 w-16 text-green-500" />
+
+      <div className="text-center">
+        <p className="text-sm text-muted-foreground mb-1">Продажа завершена · #{result.order.display_id}</p>
+        <p className="text-4xl font-bold">{formatRub(result.total)}</p>
+      </div>
+
+      <div className="flex flex-col gap-2 w-full max-w-xs">
+        <Button className="w-full gap-2" onClick={onReceipt}>
+          <Printer className="h-4 w-4" />
+          Чек
+        </Button>
+
+        {countdown > 0 ? (
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            disabled={undoing}
+            onClick={handleUndo}
+          >
+            <Undo2 className="h-4 w-4" />
+            {undoing ? "Отмена..." : `Отменить (${countdown}с)`}
+          </Button>
+        ) : null}
+
+        <Button variant="ghost" className="w-full text-muted-foreground" onClick={onDone}>
+          Готово
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Russian receipt dialog ────────────────────────────────────────────────────
+
+function ReceiptDialog({
+  open,
+  onClose,
+  order,
+  items,
+  total,
+  banking,
+}: {
+  open: boolean
+  onClose: () => void
+  order: PosOrder
+  items: LineItem[]
+  total: number
+  banking: BankingDetails
+}) {
+  const receiptRef = useRef<HTMLDivElement>(null)
+
+  const now = new Date(order.created_at)
+  const dateStr = now.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })
+  const timeStr = now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+
+  function handlePrint() {
+    const content = receiptRef.current
+    if (!content) return
+    const win = window.open("", "_blank", "width=400,height=600")
+    if (!win) return
+    win.document.write(`
+      <html><head><title>Чек #${order.display_id}</title>
+      <style>
+        body { font-family: 'Courier New', monospace; font-size: 13px; margin: 16px; color: #000; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .separator { border-top: 1px dashed #000; margin: 6px 0; }
+        .row { display: flex; justify-content: space-between; }
+        .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; }
+      </style>
+      </head><body>${content.innerHTML}</body></html>
+    `)
+    win.document.close()
+    win.print()
+  }
+
+  function fmtRu(kopecks: number) {
+    return (kopecks / 100).toLocaleString("ru-RU", { minimumFractionDigits: 0 }) + " ₽"
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Чек</DialogTitle>
+        </DialogHeader>
+
+        <div
+          ref={receiptRef}
+          className="font-mono text-xs space-y-1 border rounded p-4 bg-white text-black max-h-[60vh] overflow-y-auto"
+        >
+          <p className="text-center font-bold text-sm">ЧЕК</p>
+          {banking.name && <p className="text-center">{banking.name}</p>}
+          <p className="text-center">─────────────────────</p>
+          <div className="flex justify-between">
+            <span>Дата:</span><span>{dateStr}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Время:</span><span>{timeStr}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Чек №:</span><span>{order.display_id}</span>
+          </div>
+          <p className="text-center">─────────────────────</p>
+
+          {items.map((item, i) => {
+            const name = item.variantTitle !== item.productTitle
+              ? `${item.productTitle} (${item.variantTitle})`
+              : item.productTitle
+            const lineTotal = item.unitPrice * item.quantity
+            return (
+              <div key={i} className="space-y-0.5">
+                <p className="truncate">{name}</p>
+                <div className="flex justify-between pl-2 text-[11px]">
+                  <span>{item.quantity} × {fmtRu(item.unitPrice)}</span>
+                  <span>{fmtRu(lineTotal)}</span>
+                </div>
+              </div>
+            )
+          })}
+
+          <p className="text-center">─────────────────────</p>
+          <div className="flex justify-between font-bold">
+            <span>ИТОГО:</span>
+            <span>{fmtRu(total)}</span>
+          </div>
+          <p className="text-center">─────────────────────</p>
+          <p className="text-center text-[11px]">Оплата: наличными</p>
+          <p className="text-center text-[11px]">Спасибо за покупку!</p>
+        </div>
+
+        <Button className="w-full gap-2" onClick={handlePrint}>
+          <Printer className="h-4 w-4" />
+          Печать / PDF
+        </Button>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -177,12 +433,12 @@ function BankingDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Реквизиты для перевода</DialogTitle>
+          <DialogTitle>Thông tin chuyển khoản</DialogTitle>
         </DialogHeader>
 
         {total > 0 && (
           <div className="text-center py-1">
-            <p className="text-xs text-muted-foreground mb-0.5">Сумма к оплате</p>
+            <p className="text-xs text-muted-foreground mb-0.5">Số tiền thanh toán</p>
             <p className="text-3xl font-bold">{formatRub(total)}</p>
           </div>
         )}
@@ -190,7 +446,7 @@ function BankingDialog({
         {!hasDetails ? (
           <div className="text-center py-4 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Реквизиты не заполнены. Добавьте номер телефона и QR-код в профиле.
+              Chưa có thông tin thanh toán. Thêm số điện thoại và mã QR trong hồ sơ.
             </p>
             <Button
               variant="outline"
@@ -199,7 +455,7 @@ function BankingDialog({
               onClick={() => { onClose(); router.push("/profile") }}
             >
               <Settings className="h-3.5 w-3.5" />
-              Открыть профиль
+              Mở hồ sơ
             </Button>
           </div>
         ) : (
@@ -208,7 +464,7 @@ function BankingDialog({
               <div className="flex flex-col items-center gap-1">
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <Phone className="h-3.5 w-3.5" />
-                  <span>СБП / Перевод по номеру</span>
+                  <span>Chuyển khoản theo số điện thoại</span>
                 </div>
                 <p className="text-2xl font-bold tracking-wide">{banking.phone}</p>
                 {banking.name && (
@@ -221,7 +477,7 @@ function BankingDialog({
               <div className="flex justify-center">
                 <img
                   src={banking.qrUrl}
-                  alt="QR для оплаты"
+                  alt="Mã QR thanh toán"
                   className="h-48 w-48 rounded-xl border object-contain bg-white p-2"
                 />
               </div>
@@ -233,7 +489,7 @@ function BankingDialog({
               className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-1"
             >
               <Settings className="h-3 w-3" />
-              Изменить реквизиты
+              Thay đổi thông tin thanh toán
             </button>
           </div>
         )}
@@ -287,7 +543,7 @@ function CartItem({
           )}
         </div>
         {item.manualPrice && (
-          <span className="text-[10px] text-amber-500 font-medium shrink-0">ручная</span>
+          <span className="text-[10px] text-amber-500 font-medium shrink-0">thủ công</span>
         )}
         <button
           type="button"
@@ -343,7 +599,7 @@ function CartItem({
             type="button"
             onClick={startEdit}
             className="flex items-center gap-1 group text-left"
-            title="Изменить цену"
+            title="Thay đổi giá"
           >
             <span className={cn("text-sm", item.manualPrice && "text-amber-500 font-medium")}>
               {unitFmt}

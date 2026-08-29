@@ -1,0 +1,65 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
+
+type PosItem = {
+  variantId?: string
+  title: string
+  variantTitle?: string
+  quantity: number
+  unitPrice: number
+}
+
+type CreatePosOrderBody = {
+  items: PosItem[]
+  total: number
+  tierId?: string
+  mode?: "sell" | "order"
+}
+
+export async function POST(req: MedusaRequest, res: MedusaResponse) {
+  const { items, total, tierId, mode = "sell" } = req.body as CreatePosOrderBody
+
+  if (!items?.length) {
+    return res.status(400).json({ message: "Корзина пустая" })
+  }
+
+  const orderModule = req.scope.resolve(Modules.ORDER)
+
+  const order = await orderModule.createOrders({
+    currency_code: "rub",
+    status: mode === "sell" ? "completed" : "pending",
+    metadata: { source: "pos", tier_id: tierId ?? "retail", mode },
+  })
+
+  await orderModule.createOrderLineItems(
+    order.id,
+    items.map((item) => ({
+      title: item.variantTitle
+        ? `${item.title} — ${item.variantTitle}`
+        : item.title,
+      variant_id: item.variantId,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+    }))
+  )
+
+  res.json({
+    order: {
+      id: order.id,
+      display_id: order.display_id,
+      status: order.status,
+      total,
+      created_at: order.created_at,
+    },
+  })
+}
+
+export async function DELETE(req: MedusaRequest, res: MedusaResponse) {
+  const { id } = req.query as { id: string }
+  if (!id) return res.status(400).json({ message: "Missing order id" })
+
+  const orderModule = req.scope.resolve(Modules.ORDER)
+  await orderModule.cancel(id)
+
+  res.json({ success: true })
+}
