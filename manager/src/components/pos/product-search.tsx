@@ -7,7 +7,7 @@ import { QtyControl } from "@/components/pos/qty-control"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { listProducts, type AdminProduct, type AdminVariant, type PricingConfig } from "@/lib/api"
+import { listProducts, getVariantStock, type AdminProduct, type AdminVariant, type PricingConfig } from "@/lib/api"
 import { formatRub, cn } from "@/lib/utils"
 import type { LineItem } from "@/lib/cart"
 
@@ -289,6 +289,14 @@ function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onC
     Object.fromEntries((product.variants ?? []).map((v) => [v.id, 0]))
   )
 
+  const variantIds = (product.variants ?? []).map((v) => v.id)
+  const { data: stockData } = useQuery({
+    queryKey: ["pos-variant-stock", ...variantIds],
+    queryFn: () => getVariantStock(variantIds),
+    staleTime: 30_000,
+    enabled: variantIds.length > 0,
+  })
+
   function handleConfirm() {
     const picks = (product.variants ?? [])
       .filter((v) => (qtys[v.id] ?? 0) > 0)
@@ -337,14 +345,15 @@ function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onC
         <div className="flex flex-col divide-y border rounded-lg overflow-hidden">
           {(product.variants ?? []).map((variant) => {
             const qty = qtys[variant.id] ?? 0
-            const stock = variant.inventory_quantity
-            const hasStock = stock !== undefined && variant.manage_inventory !== false
-            const outOfStock = hasStock && stock <= 0
+            // stock: number = managed quantity, null = unlimited, undefined = loading
+            const stock = stockData?.stock[variant.id]
+            const managed = variant.manage_inventory !== false && stock !== null && stock !== undefined
+            const outOfStock = managed && stock <= 0
             return (
               <div key={variant.id} className="flex items-center px-3 py-2.5 gap-3">
                 <div className="flex-1 min-w-0">
                   <p className={cn("text-sm font-medium", outOfStock && "text-muted-foreground")}>{variant.title}</p>
-                  {hasStock && (
+                  {managed && (
                     <p className={cn("text-xs", stock <= 0 ? "text-destructive" : stock <= 3 ? "text-amber-600" : "text-muted-foreground")}>
                       {stock <= 0 ? "Hết hàng" : `Còn ${stock}`}
                     </p>

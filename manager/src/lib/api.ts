@@ -107,6 +107,16 @@ export async function getVariantInventoryItems(
   return apiFetch(`/admin/inventory-items?${qs}`)
 }
 
+/** Returns available stock quantity per variant. null = unlimited (manage_inventory=false or no inventory items). */
+export async function getVariantStock(
+  variantIds: string[]
+): Promise<{ stock: Record<string, number | null> }> {
+  if (!variantIds.length) return { stock: {} }
+  const qs = new URLSearchParams()
+  variantIds.forEach((id) => qs.append("variant_id", id))
+  return apiFetch(`/admin/pos-stock?${qs}`)
+}
+
 export async function updateProduct(
   id: string,
   data: Partial<{
