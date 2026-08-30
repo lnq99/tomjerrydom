@@ -1,5 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
+import {
+  createOrderPaymentCollectionWorkflow,
+  markPaymentCollectionAsPaid,
+} from "@medusajs/medusa/core-flows"
 
 type PosItem = {
   variantId?: string
@@ -32,6 +36,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     metadata: { source: "pos", tier_id: tierId ?? "retail", mode },
   })
 
+  const totalRubles = Math.round(total / 100)
+
   await orderModule.createOrderLineItems(
     order.id,
     items.map((item) => ({
@@ -40,10 +46,23 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         : item.title,
       variant_id: item.variantId,
       quantity: item.quantity,
-      unit_price: item.unitPrice,
+      unit_price: Math.round(item.unitPrice / 100), // frontend sends kopecks; Medusa stores as-is in rubles
       thumbnail: item.thumbnail ?? undefined,
     }))
   )
+
+  // For cash sales, create a payment collection and mark it as paid immediately
+  if (mode === "sell") {
+    try {
+      const { result: paymentCollections } = await createOrderPaymentCollectionWorkflow(req.scope)
+        .run({ input: { order_id: order.id, amount: totalRubles } })
+
+      await markPaymentCollectionAsPaid(req.scope)
+        .run({ input: { order_id: order.id, payment_collection_id: paymentCollections[0].id } })
+    } catch {
+      // Non-fatal: order is created even if payment collection fails
+    }
+  }
 
   res.json({
     order: {

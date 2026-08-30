@@ -19,7 +19,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         title: item.title,
         variant_id: item.variant_id ?? null,
         quantity: item.quantity,
-        unit_price: item.unit_price,
+        unit_price: (item.unit_price ?? 0) * 100, // Medusa stores rubles; frontend expects kopecks
         thumbnail: item.thumbnail ?? null,
         metadata: item.metadata ?? {},
       })),
@@ -49,7 +49,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     for (const item of toUpdate) {
       const update: Record<string, unknown> = {}
       if (item.quantity !== undefined) update.quantity = item.quantity
-      if (item.unit_price !== undefined) update.unit_price = item.unit_price
+      if (item.unit_price !== undefined) update.unit_price = Math.round(item.unit_price / 100) // frontend sends kopecks; convert to rubles
       if (item.metadata !== undefined) update.metadata = item.metadata
       await orderModule.updateOrderLineItems(item.id, update)
     }
@@ -61,7 +61,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
           title: item.title,
           variant_id: item.variant_id ?? undefined,
           quantity: item.quantity ?? 1,
-          unit_price: item.unit_price ?? 0,
+          unit_price: Math.round((item.unit_price ?? 0) / 100), // frontend sends kopecks; convert to rubles
           metadata: item.metadata ?? {},
         }))
       )
