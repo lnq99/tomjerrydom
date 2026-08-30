@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { Modules } from "@medusajs/framework/utils"
+import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
   createOrderPaymentCollectionWorkflow,
   markPaymentCollectionAsPaid,
@@ -19,6 +19,68 @@ type CreatePosOrderBody = {
   total: number
   tierId?: string
   mode?: "sell" | "order"
+}
+
+/** Deduct stocked_quantity for each item at the first available stock location. Allows negative. */
+async function deductVariantStock(
+  scope: MedusaRequest["scope"],
+  items: { variant_id?: string | null; quantity: number }[]
+) {
+  const withVariant = items.filter((i) => i.variant_id && i.quantity > 0)
+  if (!withVariant.length) return
+
+  try {
+    const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+    const inventoryModule = scope.resolve(Modules.INVENTORY)
+
+    // Get first stock location
+    const { data: locations } = await (query.graph({
+      entity: "stock_location",
+      fields: ["id"],
+    }) as Promise<{ data: { id: string }[] }>)
+    const locationId = locations?.[0]?.id
+    if (!locationId) return
+
+    // Get inventory items for each variant via the link entity
+    const variantIds = withVariant.map((i) => i.variant_id!)
+    const { data: links } = await (query.graph({
+      entity: "product_variant",
+      fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
+      filters: { id: variantIds },
+    }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+
+    // variantId → inventory item ID (try inventory_item_id first, fall back to id)
+    const variantToInvItem = new Map<string, string>()
+    for (const v of links ?? []) {
+      const inv = v.inventory_items?.[0]
+      const invId = inv?.inventory_item_id ?? inv?.id
+      if (invId) variantToInvItem.set(v.id, invId)
+    }
+    if (!variantToInvItem.size) return
+
+    // Get current levels at this location
+    const invItemIds = [...variantToInvItem.values()]
+    const levels = await inventoryModule.listInventoryLevels({
+      inventory_item_id: invItemIds,
+      location_id: locationId,
+    })
+    const levelMap = new Map<string, any>(levels.map((l: any) => [l.inventory_item_id, l]))
+
+    // Build updates (deduct quantity, allow negative)
+    const updates: { id: string; stocked_quantity: number }[] = []
+    for (const item of withVariant) {
+      const invId = variantToInvItem.get(item.variant_id!)
+      if (!invId) continue
+      const level = levelMap.get(invId)
+      if (!level) continue
+      updates.push({ id: level.id, stocked_quantity: (level.stocked_quantity ?? 0) - item.quantity })
+    }
+    if (updates.length) {
+      await inventoryModule.updateInventoryLevels(updates)
+    }
+  } catch {
+    // Non-fatal: order is created even if stock deduction fails
+  }
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
@@ -51,17 +113,21 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     }))
   )
 
-  // For cash sales, create a payment collection and mark it as paid immediately
+  // For cash sales: capture payment and deduct stock
   if (mode === "sell") {
     try {
       const { result: paymentCollections } = await createOrderPaymentCollectionWorkflow(req.scope)
         .run({ input: { order_id: order.id, amount: totalRubles } })
-
       await markPaymentCollectionAsPaid(req.scope)
         .run({ input: { order_id: order.id, payment_collection_id: paymentCollections[0].id } })
     } catch {
-      // Non-fatal: order is created even if payment collection fails
+      // Non-fatal
     }
+
+    await deductVariantStock(
+      req.scope,
+      items.map((i) => ({ variant_id: i.variantId ?? null, quantity: i.quantity }))
+    )
   }
 
   res.json({

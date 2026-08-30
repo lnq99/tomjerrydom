@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { QtyControl } from "@/components/pos/qty-control"
-import { getPosOrder, updatePosOrder, type OrderDetail, type OrderDetailItem } from "@/lib/api"
+import { getPosOrder, updatePosOrder, markOrderAsPaid, type OrderDetail, type OrderDetailItem } from "@/lib/api"
 import { formatRub, rubles, toKopecks, cn } from "@/lib/utils"
 import { format } from "date-fns"
 
@@ -41,7 +41,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning"
 function initPickState(order: OrderDetail): PickState {
   const meta = order.metadata ?? {}
   return {
-    picked: Object.fromEntries(order.items.map((i) => [i.id, 0])),
+    picked: Object.fromEntries(order.items.map((i) => [i.id, i.quantity])),
     prices: Object.fromEntries(order.items.map((i) => [i.id, i.unit_price])),
     extras: [],
     customerName: String(meta.customer_name ?? ""),
@@ -171,6 +171,19 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleMarkPaid() {
+    setSaving(true)
+    try {
+      await markOrderAsPaid(id)
+      await refetch()
+      toast.success("Đã đánh dấu là đã thanh toán")
+    } catch (e: any) {
+      toast.error(e?.message ?? "Lỗi")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const statusInfo = STATUS_MAP[order.status] ?? { label: order.status, variant: "outline" as const }
 
   // ── Review overlay ──────────────────────────────────────────────────────────
@@ -208,17 +221,30 @@ export default function OrderDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-lg">Đơn #{order.display_id}</span>
             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+            {order.payment_status === "captured" && (
+              <Badge variant="success">Đã thanh toán</Badge>
+            )}
+            {order.payment_status && order.payment_status !== "captured" && order.payment_status !== "not_paid" && (
+              <Badge variant="warning">{order.payment_status}</Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {format(new Date(order.created_at), "d MMM yyyy, HH:mm")}
           </p>
         </div>
-        {!isReadOnly && order.status === "pending" && (
-          <Button size="sm" variant="outline" onClick={handleComplete} disabled={saving}>
-            <Check className="h-3.5 w-3.5 mr-1" />
-            Hoàn thành
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {order.payment_status !== "captured" && order.status !== "cancelled" && (
+            <Button size="sm" variant="outline" onClick={handleMarkPaid} disabled={saving} className="text-green-600 border-green-600 hover:bg-green-50">
+              <Check className="h-3.5 w-3.5 mr-1" />
+              Đã thanh toán
+            </Button>
+          )}
+          {!isReadOnly && order.status === "pending" && (
+            <Button size="sm" variant="outline" onClick={handleComplete} disabled={saving}>
+              Hoàn thành
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Content */}

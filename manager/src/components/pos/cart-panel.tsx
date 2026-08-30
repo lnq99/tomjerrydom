@@ -45,6 +45,7 @@ type SaleResult = {
   order: PosOrder
   cart: Cart
   total: number
+  tabId?: string
 }
 
 export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, onSetPrice, onRemove, onClear, onOrderCreated, cartTabs, onSwitchTab, onAddTab, onCloseTab, onRenameTab }: Props) {
@@ -63,6 +64,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
     if (cart.items.length === 0 || selling) return
     setSelling(true)
     try {
+      const activeTabId = cartTabs.find((t) => t.isActive)?.id
       const result = await createPosOrder({
         items: cart.items.map((i) => ({
           variantId: i.variantId,
@@ -76,7 +78,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         tierId,
         mode: "sell",
       })
-      setSaleResult({ order: result.order, cart, total })
+      setSaleResult({ order: result.order, cart, total, tabId: activeTabId })
       onClear()
     } catch (e: any) {
       toast.error(e?.message ?? "Ошибка при создании заказа")
@@ -89,6 +91,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
     if (cart.items.length === 0 || ordering) return
     setOrdering(true)
     try {
+      const activeTabId = cartTabs.find((t) => t.isActive)?.id
       const result = await createPosOrder({
         items: cart.items.map((i) => ({
           variantId: i.variantId,
@@ -103,6 +106,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         mode: "order",
       })
       onClear()
+      if (activeTabId && cartTabs.length > 1) onCloseTab(activeTabId)
       onOrderCreated?.(result.order.id)
       toast.success(`Đơn #${result.order.display_id} đã tạo`)
     } catch (e: any) {
@@ -142,7 +146,11 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
       {saleResult && (
         <SaleSuccessOverlay
           result={saleResult}
-          onDone={() => setSaleResult(null)}
+          onDone={() => {
+            const tabId = saleResult.tabId
+            setSaleResult(null)
+            if (tabId && cartTabs.length > 1) onCloseTab(tabId)
+          }}
           onReceipt={() => setReceiptOpen(true)}
         />
       )}

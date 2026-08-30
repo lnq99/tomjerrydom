@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Package, Loader2, X, Star } from "lucide-react"
@@ -12,7 +12,7 @@ import {
   createVariant, deleteVariant,
   updateVariant,
   uploadFile, listCategories, listStockLocations,
-  setInventoryLevel, getVariantInventoryItems,
+  setInventoryLevel, getVariantStock,
   saveProductCosts,
   type CreateProductInput,
 } from "@/lib/api"
@@ -29,6 +29,7 @@ type VariantRow = {
   sku: string
   stock: string
   initialStock: string
+  inventoryItemId?: string
   deleted?: boolean
 }
 
@@ -58,6 +59,8 @@ function flattenCats(
 function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
   const qty = v.inventory_quantity
   const stock = qty !== undefined && qty !== null ? String(qty) : ""
+  // inventory_items[0].inventory_item_id is the actual InventoryItem ID needed for stock-level updates
+  const inventoryItemId = v.inventory_items?.[0]?.inventory_item_id
   return {
     _key: v.id,
     id: v.id,
@@ -65,6 +68,7 @@ function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
     sku: v.sku ?? "",
     stock,
     initialStock: stock,
+    inventoryItemId,
   }
 }
 
@@ -118,7 +122,37 @@ export function ProductForm({
   )
   const defaultLocationId = locData?.stock_locations[0]?.id
 
+  const existingVariantIds = product?.variants.map((v) => v.id) ?? []
+  const { data: stockData } = useQuery({
+    queryKey: ["variant-stock-form", ...existingVariantIds],
+    queryFn: () => getVariantStock(existingVariantIds),
+    staleTime: 60_000,
+    enabled: existingVariantIds.length > 0,
+  })
+
   const [form, setForm] = useState<FormState>(() => initForm(product))
+
+  // Once stock loads, populate initial stock values AND inventory item IDs (only once)
+  const stockInitialized = useRef(false)
+  useEffect(() => {
+    if (!stockData || stockInitialized.current) return
+    stockInitialized.current = true
+    setForm((f) => ({
+      ...f,
+      variants: f.variants.map((v) => {
+        if (!v.id) return v
+        const qty = stockData.stock[v.id]
+        const invId = stockData.inventory_item_ids?.[v.id]
+        const stockStr = qty !== null && qty !== undefined ? String(qty) : v.stock
+        return {
+          ...v,
+          stock: stockStr,
+          initialStock: stockStr,
+          ...(invId ? { inventoryItemId: invId } : {}),
+        }
+      }),
+    }))
+  }, [stockData])
 
   function setField<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm((f) => ({ ...f, [key]: val }))
@@ -258,8 +292,12 @@ export function ProductForm({
     const toCreate = form.variants.filter((v) => !v.deleted && !v.id && v.title.trim())
 
     await Promise.all(toDelete.map((v) => deleteVariant(product.id, v.id!)))
+    const variantFieldsChanged = toUpdate.filter((v) => {
+      const orig = product.variants.find((o) => o.id === v.id)
+      return !orig || v.title.trim() !== orig.title || (v.sku.trim() || undefined) !== (orig.sku ?? undefined)
+    })
     await Promise.all(
-      toUpdate.map((v) =>
+      variantFieldsChanged.map((v) =>
         updateVariant(product.id, v.id!, {
           title: v.title.trim(),
           sku: v.sku.trim() || undefined,
@@ -277,17 +315,14 @@ export function ProductForm({
     )
 
     // stock: only update variants where user typed a new value
-    const stockChanged = toUpdate.filter((v) => v.stock !== "" && v.stock !== v.initialStock)
+    // inventoryItemId is fetched with the product (via *variants.inventory_items in getProduct)
+    const stockChanged = toUpdate.filter((v) => v.stock !== "" && v.stock !== v.initialStock && v.inventoryItemId)
     if (stockChanged.length > 0 && defaultLocationId) {
       try {
-        const invData = await getVariantInventoryItems(stockChanged.map((v) => v.id!))
-        const itemMap = new Map(invData.inventory_items.map((it) => [it.variant_id ?? "", it.id]))
         await Promise.all(
-          stockChanged.map((v) => {
-            const invId = itemMap.get(v.id ?? "")
-            if (!invId) return Promise.resolve()
-            return setInventoryLevel(invId, defaultLocationId, Math.max(0, parseInt(v.stock) || 0))
-          })
+          stockChanged.map((v) =>
+            setInventoryLevel(v.inventoryItemId!, defaultLocationId, parseInt(v.stock) || 0)
+          )
         )
       } catch {
         toast.error("Tồn kho chưa được cập nhật — kiểm tra cài đặt kho")

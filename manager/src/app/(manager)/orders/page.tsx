@@ -193,11 +193,17 @@ function OrderRow({ order, onClick }: { order: AdminOrder; onClick: () => void }
           <span className="font-semibold text-sm">#{order.display_id}</span>
           <span className="text-xs text-muted-foreground truncate">{customerName}</span>
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className="text-xs text-muted-foreground">{date}</span>
           <Badge variant={s.variant} className="text-[10px] px-1.5 py-0">
             {s.label}
           </Badge>
+          {order.payment_status === "captured" && (
+            <Badge variant="success" className="text-[10px] px-1.5 py-0">Đã TT</Badge>
+          )}
+          {order.payment_status && order.payment_status !== "captured" && order.payment_status !== "not_paid" && (
+            <Badge variant="warning" className="text-[10px] px-1.5 py-0">{order.payment_status}</Badge>
+          )}
         </div>
       </div>
 

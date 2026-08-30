@@ -94,7 +94,7 @@ export async function listProducts(params?: {
 
 export async function getProduct(id: string): Promise<{ product: AdminProduct }> {
   return apiFetch(
-    `/admin/products/${id}?fields=id,title,thumbnail,status,metadata,*variants,*categories,*images`
+    `/admin/products/${id}?fields=id,title,thumbnail,status,metadata,*variants,*variants.inventory_items,*categories,*images`
   )
 }
 
@@ -107,11 +107,13 @@ export async function getVariantInventoryItems(
   return apiFetch(`/admin/inventory-items?${qs}`)
 }
 
-/** Returns available stock quantity per variant. null = unlimited (manage_inventory=false or no inventory items). */
+/** Returns available stock quantity per variant and inventory item IDs for stock updates.
+ *  stock: null = unlimited (manage_inventory=false or no inventory items).
+ *  inventory_item_ids: null = no inventory item linked (can't set stock level). */
 export async function getVariantStock(
   variantIds: string[]
-): Promise<{ stock: Record<string, number | null> }> {
-  if (!variantIds.length) return { stock: {} }
+): Promise<{ stock: Record<string, number | null>; inventory_item_ids: Record<string, string | null> }> {
+  if (!variantIds.length) return { stock: {}, inventory_item_ids: {} }
   const qs = new URLSearchParams()
   variantIds.forEach((id) => qs.append("variant_id", id))
   return apiFetch(`/admin/pos-stock?${qs}`)
@@ -204,6 +206,8 @@ export async function setInventoryLevel(
   locationId: string,
   stockedQuantity: number
 ): Promise<void> {
+  // Update path uses the stock location ID (sloc_...), not the inventory level record ID.
+  // Falls back to create if the item has no level at this location yet.
   try {
     await apiFetch(`/admin/inventory-items/${inventoryItemId}/location-levels/${locationId}`, {
       method: "POST",
@@ -287,6 +291,7 @@ export type OrderDetail = {
   id: string
   display_id: number
   status: string
+  payment_status?: string
   created_at: string
   metadata: Record<string, unknown>
   items: OrderDetailItem[]
@@ -302,9 +307,13 @@ type PosOrderPatchItem =
 
 export async function updatePosOrder(
   id: string,
-  data: { items?: PosOrderPatchItem[]; metadata?: Record<string, unknown>; complete?: boolean }
+  data: { items?: PosOrderPatchItem[]; metadata?: Record<string, unknown>; complete?: boolean; mark_paid?: boolean }
 ): Promise<{ success: boolean }> {
   return apiFetch(`/admin/pos-orders/${id}`, { method: "PATCH", body: JSON.stringify(data) })
+}
+
+export async function markOrderAsPaid(id: string): Promise<{ success: boolean }> {
+  return apiFetch(`/admin/pos-orders/${id}`, { method: "PATCH", body: JSON.stringify({ mark_paid: true }) })
 }
 
 // ── Orders ───────────────────────────────────────────────────────────────────
@@ -312,6 +321,7 @@ export type AdminOrder = {
   id: string
   display_id: number
   status: string
+  payment_status?: string
   total: number
   subtotal: number
   created_at: string
@@ -327,7 +337,7 @@ export async function listOrders(params?: {
   const qs = new URLSearchParams()
   qs.set("limit", String(params?.limit ?? 50))
   qs.set("offset", String(params?.offset ?? 0))
-  qs.set("fields", "id,display_id,status,total,subtotal,created_at,*customer,*items")
+  qs.set("fields", "id,display_id,status,payment_status,total,subtotal,created_at,*customer,*items")
   qs.set("order", "-created_at")
   if (params?.created_at_gte) qs.set("created_at[gte]", params.created_at_gte)
   const raw = await apiFetch<{ orders: AdminOrder[]; count: number }>(`/admin/orders?${qs}`)
