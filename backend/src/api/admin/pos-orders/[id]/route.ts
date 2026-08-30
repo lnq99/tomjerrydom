@@ -17,13 +17,6 @@ async function deductVariantStock(
     const query = scope.resolve(ContainerRegistrationKeys.QUERY)
     const inventoryModule = scope.resolve(Modules.INVENTORY)
 
-    const { data: locations } = await (query.graph({
-      entity: "stock_location",
-      fields: ["id"],
-    }) as Promise<{ data: { id: string }[] }>)
-    const locationId = locations?.[0]?.id
-    if (!locationId) return
-
     const variantIds = withVariant.map((i) => i.variant_id!)
     const { data: links } = await (query.graph({
       entity: "product_variant",
@@ -40,11 +33,18 @@ async function deductVariantStock(
     if (!variantToInvItem.size) return
 
     const invItemIds = [...variantToInvItem.values()]
+    // No location filter — find wherever each item is actually stocked
     const levels = await inventoryModule.listInventoryLevels({
       inventory_item_id: invItemIds,
-      location_id: locationId,
     })
-    const levelMap = new Map<string, any>(levels.map((l: any) => [l.inventory_item_id, l]))
+    // Per inventory_item_id, pick the level with the most stocked_quantity
+    const levelMap = new Map<string, any>()
+    for (const l of levels as any[]) {
+      const prev = levelMap.get(l.inventory_item_id)
+      if (!prev || (l.stocked_quantity ?? 0) > (prev.stocked_quantity ?? 0)) {
+        levelMap.set(l.inventory_item_id, l)
+      }
+    }
 
     const updates: { id: string; stocked_quantity: number }[] = []
     for (const item of withVariant) {
@@ -65,15 +65,37 @@ async function deductVariantStock(
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params as { id: string }
   const orderModule = req.scope.resolve(Modules.ORDER)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  const order = await orderModule.retrieveOrder(id, { relations: ["items"] })
+  const [order, { data: graph }] = await Promise.all([
+    orderModule.retrieveOrder(id, { relations: ["items"] }),
+    query.graph({
+      entity: "order",
+      fields: ["id", "payment_status"],
+      filters: { id },
+    }) as Promise<{ data: { id: string; payment_status: string | null }[] }>,
+  ])
+
+  // Fetch cost_price for each variant so the frontend can compute profit
+  const variantIds = ((order as any).items ?? []).map((i: any) => i.variant_id).filter(Boolean)
+  const costMap: Record<string, number> = {}
+  if (variantIds.length) {
+    const { data: variants } = await (query.graph({
+      entity: "product_variant",
+      fields: ["id", "cost_price"],
+      filters: { id: variantIds },
+    }) as Promise<{ data: { id: string; cost_price?: number | null }[] }>)
+    for (const v of variants ?? []) {
+      costMap[v.id] = Math.round((v.cost_price ?? 0) * 100) // rubles → kopecks
+    }
+  }
 
   res.json({
     order: {
       id: order.id,
       display_id: order.display_id,
       status: order.status,
-      payment_status: (order as any).payment_status ?? null,
+      payment_status: graph?.[0]?.payment_status ?? null,
       created_at: order.created_at,
       metadata: order.metadata ?? {},
       items: ((order as any).items ?? []).map((item: any) => ({
@@ -81,7 +103,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         title: item.title,
         variant_id: item.variant_id ?? null,
         quantity: item.quantity,
-        unit_price: (item.unit_price ?? 0) * 100, // Medusa stores rubles; frontend expects kopecks
+        unit_price: (item.unit_price ?? 0) * 100,
+        cost_price: costMap[item.variant_id] ?? 0,
         thumbnail: item.thumbnail ?? null,
         metadata: item.metadata ?? {},
       })),
@@ -98,11 +121,13 @@ type PatchBody = {
   metadata?: Record<string, unknown>
   complete?: boolean
   mark_paid?: boolean
+  cancel?: boolean
+  archive?: boolean
 }
 
 export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params as { id: string }
-  const { items, metadata, complete, mark_paid } = req.body as PatchBody
+  const { items, metadata, complete, mark_paid, cancel, archive } = req.body as PatchBody
   const orderModule = req.scope.resolve(Modules.ORDER)
 
   if (items) {
@@ -153,6 +178,14 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
 
   if (complete) {
     await orderModule.completeOrder(id)
+  }
+
+  if (cancel) {
+    await orderModule.cancelOrder(id)
+  }
+
+  if (archive) {
+    await orderModule.updateOrders(id, { status: "archived" } as any)
   }
 
   if (mark_paid) {

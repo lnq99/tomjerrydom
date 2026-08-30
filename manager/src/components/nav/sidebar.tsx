@@ -2,14 +2,16 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ShoppingCart, ClipboardList, Package, BarChart2, Settings, LogOut, LayoutList, Clapperboard, UserCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { ShoppingCart, ClipboardList, Package, BarChart2, Settings, LogOut, LayoutList, Clapperboard, UserCircle, ChevronLeft, ChevronRight, Users, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { clearToken } from "@/lib/api"
+import { useSensitive } from "@/lib/sensitive-context"
 import { useState, useEffect } from "react"
 
 const items = [
   { href: "/pos", icon: ShoppingCart, label: "Quầy bán" },
   { href: "/orders", icon: ClipboardList, label: "Đơn hàng" },
+  { href: "/customers", icon: Users, label: "Khách hàng" },
   { href: "/products", icon: Package, label: "Sản phẩm" },
   { href: "/catalog", icon: LayoutList, label: "Danh mục" },
   { href: "/analytics", icon: BarChart2, label: "Phân tích" },
@@ -21,6 +23,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const { show: showSensitive, toggle: toggleSensitive } = useSensitive()
 
   useEffect(() => {
     try {
@@ -97,6 +100,20 @@ export function Sidebar() {
           <UserCircle className="h-4 w-4 shrink-0" />
           {!collapsed && "Hồ sơ"}
         </Link>
+        <button
+          onClick={toggleSensitive}
+          title={showSensitive ? "Ẩn thông tin nhạy cảm" : "Hiện thông tin nhạy cảm"}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
+            collapsed && "justify-center px-0",
+            showSensitive
+              ? "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              : "text-amber-500 hover:bg-accent"
+          )}
+        >
+          {showSensitive ? <Eye className="h-4 w-4 shrink-0" /> : <EyeOff className="h-4 w-4 shrink-0" />}
+          {!collapsed && (showSensitive ? "Ẩn thông tin" : "Hiện thông tin")}
+        </button>
         <button
           onClick={handleLogout}
           title={collapsed ? "Đăng xuất" : undefined}

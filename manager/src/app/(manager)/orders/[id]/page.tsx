@@ -1,17 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft, AlertCircle, Check, Pencil, X } from "lucide-react"
+import { ArrowLeft, AlertCircle, Check, Pencil, X, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { QtyControl } from "@/components/pos/qty-control"
-import { getPosOrder, updatePosOrder, markOrderAsPaid, type OrderDetail, type OrderDetailItem } from "@/lib/api"
+import { getPosOrder, updatePosOrder, markOrderAsPaid, cancelOrder, archiveOrder, createPosOrder, listCustomers, type OrderDetail, type OrderDetailItem, type CustomerProfile } from "@/lib/api"
 import { formatRub, rubles, toKopecks, cn } from "@/lib/utils"
+import { useSensitive, maskPhone } from "@/lib/sensitive-context"
 import { format } from "date-fns"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ type PickState = {
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" | "outline" }> = {
   completed:      { label: "Hoàn thành",    variant: "success" },
   pending:        { label: "Chờ thanh toán", variant: "warning" },
-  cancelled:      { label: "Đã hủy",        variant: "destructive" },
+  canceled:      { label: "Đã hủy",        variant: "destructive" },
   archived:       { label: "Lưu trữ",       variant: "secondary" },
   draft:          { label: "Nháp",          variant: "outline" },
   requires_action:{ label: "Cần xử lý",     variant: "warning" },
@@ -68,6 +69,8 @@ export default function OrderDetailPage() {
   const [showViewAnyway, setShowViewAnyway] = useState(false)
   const [addItemOpen, setAddItemOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirmPay, setConfirmPay] = useState(false)
+  const { show: showSensitive } = useSensitive()
 
   useEffect(() => {
     if (order && !ps) setPs(initPickState(order))
@@ -81,7 +84,7 @@ export default function OrderDetailPage() {
     )
   }
 
-  const isReadOnly = order.status === "completed" || order.status === "cancelled"
+  const isReadOnly = order.status === "completed" || order.status === "canceled"
 
   const hasMissing = order.items.some((i) => (ps.picked[i.id] ?? i.quantity) < i.quantity)
 
@@ -171,6 +174,53 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleCancel() {
+    if (!confirm("Hủy đơn hàng này?")) return
+    setSaving(true)
+    try {
+      await cancelOrder(id)
+      await refetch()
+      toast.success("Đã hủy đơn hàng")
+    } catch (e: any) {
+      toast.error(e?.message ?? "Lỗi")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleClone() {
+    if (!order) return
+    setSaving(true)
+    try {
+      const items = order.items.map((i) => ({
+        variantId: i.variant_id ?? undefined,
+        title: i.title,
+        quantity: i.quantity,
+        unitPrice: i.unit_price,
+      }))
+      const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+      const { order: newOrder } = await createPosOrder({ items, total })
+      router.push(`/orders/${newOrder.id}`)
+    } catch (e: any) {
+      toast.error(e?.message ?? "Lỗi khi nhân bản")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleArchive() {
+    setSaving(true)
+    try {
+      await archiveOrder(id)
+      await refetch()
+      toast.success("Đã lưu trữ đơn hàng")
+    } catch (e: any) {
+      toast.error(e?.message ?? "Lỗi")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleMarkPaid() {
     setSaving(true)
     try {
@@ -221,30 +271,44 @@ export default function OrderDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-lg">Đơn #{order.display_id}</span>
             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-            {order.payment_status === "captured" && (
-              <Badge variant="success">Đã thanh toán</Badge>
+            {order.status !== "completed" && order.status !== "canceled" && order.payment_status === "captured" && (
+              <Badge variant="success">Đã TT</Badge>
             )}
-            {order.payment_status && order.payment_status !== "captured" && order.payment_status !== "not_paid" && (
-              <Badge variant="warning">{order.payment_status}</Badge>
+            {order.status !== "canceled" && order.payment_status === "not_paid" && (
+              <Badge variant="outline" className="text-red-400 border-red-200">Chưa TT</Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
             {format(new Date(order.created_at), "d MMM yyyy, HH:mm")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {order.payment_status !== "captured" && order.status !== "cancelled" && (
-            <Button size="sm" variant="outline" onClick={handleMarkPaid} disabled={saving} className="text-green-600 border-green-600 hover:bg-green-50">
-              <Check className="h-3.5 w-3.5 mr-1" />
-              Đã thanh toán
-            </Button>
-          )}
-          {!isReadOnly && order.status === "pending" && (
-            <Button size="sm" variant="outline" onClick={handleComplete} disabled={saving}>
-              Hoàn thành
-            </Button>
-          )}
-        </div>
+        {(() => {
+          const isPaid = order.payment_status === "captured"
+          const terminal = order.status === "canceled" || order.status === "archived"
+          const isCompleted = order.status === "completed"
+          const isPending = order.status === "pending"
+          return (
+            <div className="flex items-center gap-1.5">
+              {!isPaid && !terminal && !isCompleted && (
+                <Button size="sm" variant="outline" onClick={() => setConfirmPay(true)} disabled={saving} className="h-7 text-xs px-2.5">
+                  Thu tiền
+                </Button>
+              )}
+              {isPending && isPaid && (
+                <Button size="sm" variant="outline" onClick={handleComplete} disabled={saving} className="h-7 text-xs px-2.5">
+                  Hoàn thành
+                </Button>
+              )}
+              <ActionsMenu>
+                <ActionsMenuItem onClick={handleClone} disabled={saving}>Nhân bản</ActionsMenuItem>
+                {isCompleted && <ActionsMenuItem onClick={handleArchive} disabled={saving}>Lưu trữ</ActionsMenuItem>}
+                {isPending && (
+                  <ActionsMenuItem onClick={handleCancel} disabled={saving} destructive>Hủy đơn</ActionsMenuItem>
+                )}
+              </ActionsMenu>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Content */}
@@ -316,6 +380,17 @@ export default function OrderDetailPage() {
             <div className="text-sm">
               <span className="text-muted-foreground">Tổng: </span>
               <span className="font-bold">{formatRub(afterTotal)}</span>
+              {(() => {
+                const profit = order.items.reduce((s, i) => s + (i.unit_price - i.cost_price) * (ps.picked[i.id] ?? i.quantity), 0)
+                if (profit <= 0) return null
+                return (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    LN: <span className={showSensitive ? "text-green-600 font-semibold" : ""}>
+                      {showSensitive ? formatRub(profit) : "••••••"}
+                    </span>
+                  </span>
+                )
+              })()}
             </div>
             <Button onClick={handleViewClick} className="shrink-0">
               Xem đơn →
@@ -325,9 +400,23 @@ export default function OrderDetailPage() {
       )}
 
       {isReadOnly && (
-        <div className="border-t px-4 py-3 shrink-0 flex justify-between items-center">
-          <div className="text-sm text-muted-foreground">Tổng đơn hàng</div>
-          <div className="font-bold">{formatRub(beforeTotal)}</div>
+        <div className="border-t px-4 py-3 shrink-0 space-y-1">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-muted-foreground">Tổng đơn hàng</div>
+            <div className="font-bold">{formatRub(beforeTotal)}</div>
+          </div>
+          {(() => {
+            const profit = order.items.reduce((s, i) => s + (i.unit_price - i.cost_price) * (ps.picked[i.id] ?? i.quantity), 0)
+            if (profit <= 0) return null
+            return (
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-muted-foreground">Lợi nhuận</div>
+                <div className={cn("text-xs font-semibold", showSensitive ? "text-green-600" : "text-muted-foreground")}>
+                  {showSensitive ? formatRub(profit) : "••••••"}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -343,7 +432,93 @@ export default function OrderDetailPage() {
           setAddItemOpen(false)
         }}
       />
+
+      <Dialog open={confirmPay} onOpenChange={setConfirmPay}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận thanh toán</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Đơn hàng</span>
+              <span className="font-medium">#{order.display_id}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold">
+              <span>Tổng cộng</span>
+              <span>{formatRub(beforeTotal)}</span>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button
+              className="flex-1"
+              onClick={async () => {
+                setConfirmPay(false)
+                await handleMarkPaid()
+              }}
+              disabled={saving}
+            >
+              <Check className="h-4 w-4 mr-1.5" />
+              Xác nhận đã thu
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmPay(false)}>
+              Hủy
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+// ─── Actions Menu ────────────────────────────────────────────────────────────
+
+function ActionsMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    return () => document.removeEventListener("mousedown", onDown)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)} className="h-7 w-7 p-0">
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-8 z-[200] min-w-[130px] rounded-md border bg-popover shadow-lg py-1" onClick={() => setOpen(false)}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActionsMenuItem({
+  children, onClick, disabled, destructive,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  disabled?: boolean
+  destructive?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50",
+        destructive && "text-destructive hover:bg-destructive/10"
+      )}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -364,6 +539,11 @@ function CustomerSection({
   const [unlocked, setUnlocked] = useState(false)
   const [draft, setDraft] = useState({ name: "", phone: "", note: "" })
   const [saving, setSaving] = useState(false)
+  const [suggestions, setSuggestions] = useState<CustomerProfile[]>([])
+  const { show: showSensitive } = useSensitive()
+
+  const { data: custData } = useQuery({ queryKey: ["customers"], queryFn: listCustomers, staleTime: 60_000 })
+  const allCustomers = custData?.customers ?? []
 
   const hasInfo = ps.customerName || ps.customerPhone || ps.customerNote
   const canEdit = !completed || unlocked
@@ -371,13 +551,34 @@ function CustomerSection({
   function startEdit() {
     setDraft({ name: ps.customerName, phone: ps.customerPhone, note: ps.customerNote })
     setEditing(true)
+    setSuggestions([])
+  }
+
+  function handleDraftChange(field: "name" | "phone", value: string) {
+    const next = { ...draft, [field]: value }
+    setDraft(next)
+    const q = (next.name + next.phone).toLowerCase()
+    if (q.trim()) {
+      setSuggestions(
+        allCustomers.filter((c) =>
+          c.name.toLowerCase().includes(next.name.toLowerCase()) ||
+          c.phone.includes(next.phone)
+        ).slice(0, 5)
+      )
+    } else {
+      setSuggestions([])
+    }
+  }
+
+  function applySuggestion(c: CustomerProfile) {
+    setDraft({ name: c.name, phone: c.phone, note: c.note || draft.note })
+    setSuggestions([])
   }
 
   async function save() {
     setSaving(true)
     try {
       if (completed) {
-        // persist immediately for completed orders
         await updatePosOrder(orderId, {
           metadata: {
             customer_name: draft.name || undefined,
@@ -387,12 +588,11 @@ function CustomerSection({
         })
       }
       setPs((prev) =>
-        prev
-          ? { ...prev, customerName: draft.name, customerPhone: draft.phone, customerNote: draft.note }
-          : prev
+        prev ? { ...prev, customerName: draft.name, customerPhone: draft.phone, customerNote: draft.note } : prev
       )
       setEditing(false)
       setUnlocked(false)
+      setSuggestions([])
     } catch (e: any) {
       toast.error(e?.message ?? "Lỗi khi lưu")
     } finally {
@@ -406,13 +606,8 @@ function CustomerSection({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Khách hàng</p>
         {!editing && (
           completed && !unlocked ? (
-            <button
-              type="button"
-              onClick={() => setUnlocked(true)}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Chỉnh sửa
+            <button type="button" onClick={() => setUnlocked(true)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <Pencil className="h-3.5 w-3.5" />Chỉnh sửa
             </button>
           ) : canEdit ? (
             <button type="button" onClick={startEdit} className="text-muted-foreground hover:text-foreground">
@@ -424,20 +619,37 @@ function CustomerSection({
 
       {editing ? (
         <div className="space-y-2">
-          <Input placeholder="Tên khách hàng" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} className="h-8 text-sm" />
-          <Input placeholder="Số điện thoại" value={draft.phone} onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))} className="h-8 text-sm" />
+          <div className="relative">
+            <Input placeholder="Tên khách hàng" value={draft.name} onChange={(e) => handleDraftChange("name", e.target.value)} className="h-8 text-sm" />
+          </div>
+          <Input placeholder="Số điện thoại" value={draft.phone} onChange={(e) => handleDraftChange("phone", e.target.value)} className="h-8 text-sm" />
+          {suggestions.length > 0 && (
+            <div className="rounded-md border bg-popover shadow-md overflow-hidden">
+              {suggestions.map((c, i) => (
+                <button key={i} type="button" onClick={() => applySuggestion(c)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{c.name || "—"}</p>
+                    <p className="text-xs text-muted-foreground">{c.phone} · {c.order_count} đơn</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
           <Input placeholder="Ghi chú" value={draft.note} onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))} className="h-8 text-sm" />
           <div className="flex gap-2">
-            <Button size="sm" onClick={save} disabled={saving} className="h-7 text-xs">
-              {saving ? "..." : "Lưu"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setUnlocked(false) }} className="h-7 text-xs">Hủy</Button>
+            <Button size="sm" onClick={save} disabled={saving} className="h-7 text-xs">{saving ? "..." : "Lưu"}</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setUnlocked(false); setSuggestions([]) }} className="h-7 text-xs">Hủy</Button>
           </div>
         </div>
       ) : hasInfo ? (
         <div className="text-sm space-y-0.5">
           {ps.customerName && <p className="font-medium">{ps.customerName}</p>}
-          {ps.customerPhone && <p className="text-muted-foreground">{ps.customerPhone}</p>}
+          {ps.customerPhone && (
+            <p className="text-muted-foreground">
+              {showSensitive ? ps.customerPhone : maskPhone(ps.customerPhone)}
+            </p>
+          )}
           {ps.customerNote && <p className="text-muted-foreground italic">{ps.customerNote}</p>}
         </div>
       ) : (

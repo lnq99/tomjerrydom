@@ -1,5 +1,19 @@
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 
+// ── Primary stock location cache ─────────────────────────────────────────────
+const LOCATION_KEY = "pos_primary_location_id"
+
+export function getCachedLocationId(): string | null {
+  try { return localStorage.getItem(LOCATION_KEY) } catch { return null }
+}
+
+export async function initPrimaryLocation(): Promise<string | null> {
+  const { stock_locations } = await (apiFetch("/admin/stock-locations?limit=20&order=created_at") as Promise<{ stock_locations: { id: string; name: string }[] }>)
+  const id = stock_locations[0]?.id ?? null
+  if (id) { try { localStorage.setItem(LOCATION_KEY, id) } catch {} }
+  return id
+}
+
 function getToken(): string | null {
   if (typeof document === "undefined") return null
   const match = document.cookie.match(/(?:^|;\s*)manager_token=([^;]*)/)
@@ -112,10 +126,12 @@ export async function getVariantInventoryItems(
  *  inventory_item_ids: null = no inventory item linked (can't set stock level). */
 export async function getVariantStock(
   variantIds: string[]
-): Promise<{ stock: Record<string, number | null>; inventory_item_ids: Record<string, string | null> }> {
-  if (!variantIds.length) return { stock: {}, inventory_item_ids: {} }
+): Promise<{ stock: Record<string, number | null>; inventory_item_ids: Record<string, string | null>; location_ids: Record<string, string | null> }> {
+  if (!variantIds.length) return { stock: {}, inventory_item_ids: {}, location_ids: {} }
   const qs = new URLSearchParams()
   variantIds.forEach((id) => qs.append("variant_id", id))
+  const locationId = getCachedLocationId()
+  if (locationId) qs.set("location_id", locationId)
   return apiFetch(`/admin/pos-stock?${qs}`)
 }
 
@@ -198,7 +214,7 @@ export async function uploadFile(file: File): Promise<{ url: string; fileId: str
 export type StockLocation = { id: string; name: string }
 
 export async function listStockLocations(): Promise<{ stock_locations: StockLocation[] }> {
-  return apiFetch("/admin/stock-locations?limit=20")
+  return apiFetch("/admin/stock-locations?limit=20&order=-created_at")
 }
 
 export async function setInventoryLevel(
@@ -283,6 +299,7 @@ export type OrderDetailItem = {
   variant_id: string | null
   quantity: number
   unit_price: number
+  cost_price: number
   thumbnail: string | null
   metadata: Record<string, unknown>
 }
@@ -316,6 +333,30 @@ export async function markOrderAsPaid(id: string): Promise<{ success: boolean }>
   return apiFetch(`/admin/pos-orders/${id}`, { method: "PATCH", body: JSON.stringify({ mark_paid: true }) })
 }
 
+export async function cancelOrder(id: string): Promise<{ success: boolean }> {
+  return apiFetch(`/admin/pos-orders/${id}`, { method: "PATCH", body: JSON.stringify({ cancel: true }) })
+}
+
+export async function archiveOrder(id: string): Promise<{ success: boolean }> {
+  return apiFetch(`/admin/pos-orders/${id}`, { method: "PATCH", body: JSON.stringify({ archive: true }) })
+}
+
+// ── Customers ────────────────────────────────────────────────────────────────
+export type CustomerProfile = {
+  name: string
+  phone: string
+  note: string
+  order_count: number
+  last_order_id: string
+  last_order_display_id: number
+  last_order_at: string
+  total_spent: number
+}
+
+export async function listCustomers(): Promise<{ customers: CustomerProfile[] }> {
+  return apiFetch("/admin/pos-customers")
+}
+
 // ── Orders ───────────────────────────────────────────────────────────────────
 export type AdminOrder = {
   id: string
@@ -325,6 +366,7 @@ export type AdminOrder = {
   total: number
   subtotal: number
   created_at: string
+  metadata: Record<string, unknown> | null
   customer: { email: string; first_name?: string; last_name?: string } | null
   items: { id: string; title: string; quantity: number; unit_price: number; total: number }[]
 }
@@ -337,7 +379,7 @@ export async function listOrders(params?: {
   const qs = new URLSearchParams()
   qs.set("limit", String(params?.limit ?? 50))
   qs.set("offset", String(params?.offset ?? 0))
-  qs.set("fields", "id,display_id,status,payment_status,total,subtotal,created_at,*customer,*items")
+  qs.set("fields", "id,display_id,status,payment_status,total,subtotal,created_at,metadata,*customer,*items")
   qs.set("order", "-created_at")
   if (params?.created_at_gte) qs.set("created_at[gte]", params.created_at_gte)
   const raw = await apiFetch<{ orders: AdminOrder[]; count: number }>(`/admin/orders?${qs}`)

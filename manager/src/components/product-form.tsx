@@ -12,7 +12,7 @@ import {
   createVariant, deleteVariant,
   updateVariant,
   uploadFile, listCategories, listStockLocations,
-  setInventoryLevel, getVariantStock,
+  setInventoryLevel, getVariantStock, getCachedLocationId,
   saveProductCosts,
   type CreateProductInput,
 } from "@/lib/api"
@@ -30,6 +30,7 @@ type VariantRow = {
   stock: string
   initialStock: string
   inventoryItemId?: string
+  locationId?: string
   deleted?: boolean
 }
 
@@ -143,12 +144,16 @@ export function ProductForm({
         if (!v.id) return v
         const qty = stockData.stock[v.id]
         const invId = stockData.inventory_item_ids?.[v.id]
-        const stockStr = qty !== null && qty !== undefined ? String(qty) : v.stock
+        const locId = stockData.location_ids?.[v.id]
+        const hasLevel = qty !== null && qty !== undefined
+        // No level yet (null) but variant is managed → show 0, keep initialStock="" so first save creates the level
+        const stockStr = hasLevel ? String(qty) : (invId ? "0" : "")
         return {
           ...v,
           stock: stockStr,
-          initialStock: stockStr,
+          initialStock: hasLevel ? stockStr : "",
           ...(invId ? { inventoryItemId: invId } : {}),
+          ...(locId ? { locationId: locId } : {}),
         }
       }),
     }))
@@ -315,14 +320,17 @@ export function ProductForm({
     )
 
     // stock: only update variants where user typed a new value
-    // inventoryItemId is fetched with the product (via *variants.inventory_items in getProduct)
+    // Use per-variant locationId from pos-stock (actual stocked location), fall back to defaultLocationId
     const stockChanged = toUpdate.filter((v) => v.stock !== "" && v.stock !== v.initialStock && v.inventoryItemId)
-    if (stockChanged.length > 0 && defaultLocationId) {
+    const fallbackLocationId = getCachedLocationId() ?? defaultLocationId
+    if (stockChanged.length > 0) {
       try {
         await Promise.all(
-          stockChanged.map((v) =>
-            setInventoryLevel(v.inventoryItemId!, defaultLocationId, parseInt(v.stock) || 0)
-          )
+          stockChanged
+            .filter((v) => v.locationId || fallbackLocationId)
+            .map((v) =>
+              setInventoryLevel(v.inventoryItemId!, v.locationId ?? fallbackLocationId!, parseInt(v.stock) || 0)
+            )
         )
       } catch {
         toast.error("Tồn kho chưa được cập nhật — kiểm tra cài đặt kho")
