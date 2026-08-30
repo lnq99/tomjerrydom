@@ -158,51 +158,50 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
 
       {/* List */}
       {!isLoading && view === "list" && products.length > 0 && (
-        <div className="flex-1 overflow-y-auto rounded-lg border">
-          <div
-            className="grid border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sticky top-0"
-            style={{ gridTemplateColumns: `auto 1fr 80px ${tiers.map(() => "72px").join(" ")} 36px` }}
-          >
-            <div className="w-9 mr-3" />
-            <div>Sản phẩm</div>
-            <div className="text-right">Giá vốn</div>
-            {tiers.map((t) => (
-              <div key={t.id} className={cn("text-right", t.id === tierId ? "text-primary font-semibold" : "")}>
-                {shortLabel(t)}
-              </div>
-            ))}
-            <div />
-          </div>
+        <div className="flex-1 overflow-y-auto rounded-lg border divide-y">
           {products.map((product) => {
             const priced = priceMap.get(product.id)
             const cost = priced?.cost ?? 0
             const calcPrices = priced?.calculated_prices ?? {}
+            const currentPrice = calcPrices[tierId] ?? 0
+            const otherTiers = tiers.filter((t) => t.id !== tierId)
             const variantCount = product.variants?.length ?? 0
             return (
               <button
                 key={product.id}
                 type="button"
                 onClick={() => handleTap(product)}
-                className="w-full grid items-center px-3 py-2 border-b last:border-b-0 hover:bg-accent transition-colors text-left"
-                style={{ gridTemplateColumns: `auto 1fr 80px ${tiers.map(() => "72px").join(" ")} 36px` }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left"
               >
-                <div className="mr-3">
-                  {product.thumbnail
-                    ? <img src={product.thumbnail} alt="" className="h-9 w-9 rounded object-cover shrink-0" />
-                    : <div className="h-9 w-9 rounded bg-muted shrink-0" />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{product.title}</p>
-                  {variantCount > 1 && <p className="text-xs text-muted-foreground">{variantCount} mẫu</p>}
-                </div>
-                <div className="text-right text-xs text-muted-foreground">{cost ? formatRub(cost) : "—"}</div>
-                {tiers.map((t) => (
-                  <div key={t.id} className={cn("text-right text-sm", t.id === tierId ? "font-semibold" : "text-muted-foreground")}>
-                    {calcPrices[t.id] ? formatRub(calcPrices[t.id]) : "—"}
+                {/* Thumbnail */}
+                {product.thumbnail
+                  ? <img src={product.thumbnail} alt="" className="h-12 w-12 rounded object-cover shrink-0" />
+                  : <div className="h-12 w-12 rounded bg-muted shrink-0" />}
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate leading-tight">{product.title}</p>
+                  {variantCount > 1 && (
+                    <p className="text-[10px] text-muted-foreground">{variantCount} mẫu →</p>
+                  )}
+                  {/* Tier prices row */}
+                  <div className="flex flex-wrap gap-x-2 gap-y-0 mt-0.5">
+                    {cost > 0 && (
+                      <span className="text-[10px] text-muted-foreground">vốn: {formatRub(cost)}</span>
+                    )}
+                    {otherTiers.map((t) => calcPrices[t.id] ? (
+                      <span key={t.id} className="text-[10px] text-muted-foreground">
+                        {shortLabel(t)}: {formatRub(calcPrices[t.id])}
+                      </span>
+                    ) : null)}
                   </div>
-                ))}
-                <div className="flex items-center justify-center">
-                  <span className="text-xs text-muted-foreground">→</span>
+                </div>
+
+                {/* Current tier price */}
+                <div className="shrink-0 text-right">
+                  {currentPrice
+                    ? <span className="text-sm font-bold">{formatRub(currentPrice)}</span>
+                    : <span className="text-xs text-muted-foreground">—</span>}
                 </div>
               </button>
             )
@@ -213,7 +212,10 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
       {pickerProduct && (
         <VariantPicker
           product={pickerProduct}
-          tierPrice={tierPrice(pickerProduct.id)}
+          tiers={tiers}
+          tierId={tierId}
+          allPrices={priceMap.get(pickerProduct.id)?.calculated_prices ?? {}}
+          cost={productCost(pickerProduct.id)}
           onConfirm={(picks) => {
             picks.forEach(({ variant, qty }) => addVariant(pickerProduct, variant, qty))
             setPickerProduct(null)
@@ -274,19 +276,18 @@ function ProductCard({ product, tiers, tierId, tierPrice, cost, allPrices, onTap
 
 // ── Variant picker ────────────────────────────────────────────────────────────
 
-function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
+function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onClose }: {
   product: AdminProduct
-  tierPrice: number
+  tiers: Tier[]
+  tierId: string
+  allPrices: Record<string, number>
+  cost: number
   onConfirm: (picks: { variant: AdminVariant; qty: number }[]) => void
   onClose: () => void
 }) {
   const [qtys, setQtys] = useState<Record<string, number>>(() =>
     Object.fromEntries((product.variants ?? []).map((v) => [v.id, 0]))
   )
-
-  function adjust(variantId: string, delta: number) {
-    setQtys((prev) => ({ ...prev, [variantId]: Math.max(0, (prev[variantId] ?? 0) + delta) }))
-  }
 
   function handleConfirm() {
     const picks = (product.variants ?? [])
@@ -296,6 +297,8 @@ function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
   }
 
   const totalQty = Object.values(qtys).reduce((s, q) => s + q, 0)
+  const totalAmount = totalQty * (allPrices[tierId] ?? 0)
+  const otherTiers = tiers.filter((t) => t.id !== tierId)
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -303,13 +306,30 @@ function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
         <DialogHeader>
           <div className="flex items-center gap-3">
             {product.thumbnail && (
-              <img src={product.thumbnail} alt="" className="h-10 w-10 rounded object-cover" />
+              <img src={product.thumbnail} alt="" className="h-12 w-12 rounded object-cover shrink-0" />
             )}
-            <div>
-              <DialogTitle>{product.title}</DialogTitle>
-              {tierPrice > 0 && (
-                <p className="text-sm text-muted-foreground">{formatRub(tierPrice)} / cái</p>
-              )}
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-base">{product.title}</DialogTitle>
+              {/* Tier prices */}
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                {tiers.map((t) => {
+                  const p = allPrices[t.id]
+                  return p ? (
+                    <span
+                      key={t.id}
+                      className={cn(
+                        "text-xs",
+                        t.id === tierId ? "font-bold text-primary" : "text-muted-foreground"
+                      )}
+                    >
+                      {shortLabel(t)}: {formatRub(p)}
+                    </span>
+                  ) : null
+                })}
+                {cost > 0 && (
+                  <span className="text-xs text-muted-foreground">vốn: {formatRub(cost)}</span>
+                )}
+              </div>
             </div>
           </div>
         </DialogHeader>
@@ -317,12 +337,22 @@ function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
         <div className="flex flex-col divide-y border rounded-lg overflow-hidden">
           {(product.variants ?? []).map((variant) => {
             const qty = qtys[variant.id] ?? 0
+            const stock = variant.inventory_quantity
+            const hasStock = stock !== undefined && variant.manage_inventory !== false
+            const outOfStock = hasStock && stock <= 0
             return (
-              <div key={variant.id} className="flex items-center px-4 py-3 gap-3">
-                <span className="flex-1 text-sm font-medium">{variant.title}</span>
-                {qty > 0 && tierPrice > 0 && (
-                  <span className="text-sm font-semibold text-emerald-500 shrink-0">
-                    {formatRub(tierPrice * qty)}
+              <div key={variant.id} className="flex items-center px-3 py-2.5 gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className={cn("text-sm font-medium", outOfStock && "text-muted-foreground")}>{variant.title}</p>
+                  {hasStock && (
+                    <p className={cn("text-xs", stock <= 0 ? "text-destructive" : stock <= 3 ? "text-amber-600" : "text-muted-foreground")}>
+                      {stock <= 0 ? "Hết hàng" : `Còn ${stock}`}
+                    </p>
+                  )}
+                </div>
+                {qty > 0 && allPrices[tierId] > 0 && (
+                  <span className="text-sm font-semibold text-emerald-600 shrink-0">
+                    {formatRub(allPrices[tierId] * qty)}
                   </span>
                 )}
                 <QtyControl
@@ -335,12 +365,10 @@ function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
           })}
         </div>
 
-        <Button
-          className="w-full"
-          disabled={totalQty === 0}
-          onClick={handleConfirm}
-        >
-          {totalQty > 0 ? `Thêm (${totalQty} cái)` : "Chọn số lượng"}
+        <Button className="w-full" disabled={totalQty === 0} onClick={handleConfirm}>
+          {totalQty > 0
+            ? `Thêm ${totalQty} cái${totalAmount > 0 ? ` · ${formatRub(totalAmount)}` : ""}`
+            : "Chọn số lượng"}
         </Button>
       </DialogContent>
     </Dialog>

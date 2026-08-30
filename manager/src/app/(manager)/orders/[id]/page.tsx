@@ -135,8 +135,20 @@ export default function OrderDetailPage() {
           picking_done: true,
         },
       })
-      await refetch()
-      setPs(null)
+      const result = await refetch()
+      const newOrder = result.data?.order
+      setPs(
+        newOrder
+          ? {
+              picked: Object.fromEntries(newOrder.items.map((i) => [i.id, i.quantity])),
+              prices: Object.fromEntries(newOrder.items.map((i) => [i.id, i.unit_price])),
+              extras: [],
+              customerName: String(newOrder.metadata?.customer_name ?? ""),
+              customerPhone: String(newOrder.metadata?.customer_phone ?? ""),
+              customerNote: String(newOrder.metadata?.customer_note ?? ""),
+            }
+          : null
+      )
       setView("pick")
       toast.success("Đã lưu đơn hàng")
     } catch (e: any) {
