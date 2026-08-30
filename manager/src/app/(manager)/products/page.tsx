@@ -11,9 +11,9 @@ import { listProducts, updateProduct, saveProductCosts, type AdminProduct } from
 import { formatRub, rubles, toKopecks } from "@/lib/utils"
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
-  published: { label: "Опубликован", variant: "success" },
-  draft:     { label: "Черновик",   variant: "secondary" },
-  rejected:  { label: "Отклонён",   variant: "outline" },
+  published: { label: "Đã đăng", variant: "success" },
+  draft:     { label: "Nháp",    variant: "secondary" },
+  rejected:  { label: "Từ chối", variant: "outline" },
 }
 
 export default function ProductsPage() {
@@ -40,16 +40,16 @@ export default function ProductsPage() {
     <div className="flex flex-col h-full">
       <div className="border-b px-4 py-3 space-y-3">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Товары</h1>
+          <h1 className="text-xl font-bold">Sản phẩm</h1>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">{count} шт.</span>
+            <span className="text-sm text-muted-foreground">{count} cái</span>
             <button
               type="button"
               onClick={() => router.push("/products/new")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Создать</span>
+              <span className="hidden sm:inline">Tạo mới</span>
             </button>
           </div>
         </div>
@@ -57,7 +57,7 @@ export default function ProductsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Поиск..."
+            placeholder="Tìm kiếm..."
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
           />
@@ -66,9 +66,9 @@ export default function ProductsPage() {
 
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Загрузка...</div>
+          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Đang tải...</div>
         ) : products.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Товаров не найдено</div>
+          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Không tìm thấy sản phẩm</div>
         ) : (
           <>
             {/* Mobile: card list */}
@@ -82,11 +82,11 @@ export default function ProductsPage() {
                 <thead className="border-b bg-muted/50">
                   <tr>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground w-12"></th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Товар</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Категория</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Вар.</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Себест.</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Статус</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Sản phẩm</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Danh mục</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mẫu</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Giá vốn</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Trạng thái</th>
                     <th className="px-4 py-3 w-8"></th>
                   </tr>
                 </thead>
@@ -119,7 +119,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
       await updateProduct(product.id, { status: next })
       qc.invalidateQueries({ queryKey: ["products"] })
     } catch {
-      toast.error("Не удалось обновить статус")
+      toast.error("Không thể cập nhật trạng thái")
     }
   }
 
@@ -136,10 +136,10 @@ function ProductRow({ product }: { product: AdminProduct }) {
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{product.title}</p>
         <p className="text-xs text-muted-foreground">
-          {category} · {product.variants?.length ?? 0} вар. · {cost ? formatRub(cost) : "—"}
+          {category} · {product.variants?.length ?? 0} mẫu · {cost ? formatRub(cost) : "—"}
         </p>
       </div>
-      <button type="button" onClick={cycleStatus} title="Сменить статус">
+      <button type="button" onClick={cycleStatus} title="Đổi trạng thái">
         <Badge variant={s.variant}>{s.label}</Badge>
       </button>
       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -175,7 +175,7 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
       await saveProductCosts([{ product_id: product.id, cost: newKopecks }])
       qc.invalidateQueries({ queryKey: ["products"] })
     } catch {
-      toast.error("Не удалось обновить себестоимость")
+      toast.error("Không thể cập nhật giá vốn")
       setCostVal(rubles(cost))
     } finally {
       setSavingCost(false)
@@ -188,7 +188,7 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
       await updateProduct(product.id, { status: newStatus })
       qc.invalidateQueries({ queryKey: ["products"] })
     } catch {
-      toast.error("Не удалось обновить статус")
+      toast.error("Không thể cập nhật trạng thái")
     } finally {
       setSavingStatus(false)
     }
@@ -251,9 +251,9 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
           onChange={(e) => saveStatus(e.target.value)}
           className="text-xs rounded border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-40 cursor-pointer"
         >
-          <option value="draft">Черновик</option>
-          <option value="published">Опубликован</option>
-          <option value="rejected">Отклонён</option>
+          <option value="draft">Nháp</option>
+          <option value="published">Đã đăng</option>
+          <option value="rejected">Từ chối</option>
         </select>
       </td>
 

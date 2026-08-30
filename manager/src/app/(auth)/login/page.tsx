@@ -24,7 +24,7 @@ export default function LoginPage() {
       setToken(token)
       router.replace("/pos")
     } catch {
-      setError("Неверный email или пароль")
+      setError("Email hoặc mật khẩu không đúng")
     } finally {
       setLoading(false)
     }
@@ -35,7 +35,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm bg-background rounded-lg border shadow-sm p-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold">TomJerry</h1>
-          <p className="text-sm text-muted-foreground mt-1">Войдите в панель управления</p>
+          <p className="text-sm text-muted-foreground mt-1">Đăng nhập vào bảng điều khiển</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -52,7 +52,7 @@ export default function LoginPage() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="password">Пароль</label>
+            <label className="text-sm font-medium" htmlFor="password">Mật khẩu</label>
             <div className="relative">
               <Input
                 id="password"
@@ -78,7 +78,7 @@ export default function LoginPage() {
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Вход..." : "Войти"}
+            {loading ? "Đang đăng nhập..." : "Đăng nhập"}
           </Button>
         </form>
       </div>

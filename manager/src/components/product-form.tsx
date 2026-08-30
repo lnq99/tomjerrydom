@@ -136,7 +136,7 @@ export function ProductForm({
         images: [...f.images, ...results.map((r) => ({ url: r.url }))],
       }))
     } catch {
-      toast.error("Ошибка загрузки изображения")
+      toast.error("Lỗi tải hình ảnh")
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -202,12 +202,12 @@ export function ProductForm({
 
   // ── Save ─────────────────────────────────────────────────────
   async function handleSave() {
-    if (!form.title.trim()) { toast.error("Введите название товара"); return }
+    if (!form.title.trim()) { toast.error("Nhập tên sản phẩm"); return }
     setSaving(true)
     try {
       if (product) { await doUpdate() } else { await doCreate() }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Ошибка сохранения")
+      toast.error(e instanceof Error ? e.message : "Lỗi lưu")
     } finally {
       setSaving(false)
     }
@@ -234,7 +234,7 @@ export function ProductForm({
       await saveProductCosts([{ product_id: created.id, cost: toKopecks(form.cost) }])
     }
     qc.invalidateQueries({ queryKey: ["products"] })
-    toast.success("Товар создан")
+    toast.success("Đã tạo sản phẩm")
     router.replace(`/products/${created.id}`)
   }
 
@@ -290,13 +290,13 @@ export function ProductForm({
           })
         )
       } catch {
-        toast.error("Остатки не обновлены — проверьте настройки склада")
+        toast.error("Tồn kho chưa được cập nhật — kiểm tra cài đặt kho")
       }
     }
 
     qc.invalidateQueries({ queryKey: ["products"] })
     qc.invalidateQueries({ queryKey: ["product", product.id] })
-    toast.success("Сохранено")
+    toast.success("Đã lưu")
     router.back()
   }
 
@@ -316,7 +316,7 @@ export function ProductForm({
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h1 className="text-xl font-bold flex-1 truncate">
-          {isError ? "Ошибка" : isLoading ? "Загрузка..." : isNew ? "Новый товар" : form.title || "Редактирование"}
+          {isError ? "Lỗi" : isLoading ? "Đang tải..." : isNew ? "Sản phẩm mới" : form.title || "Chỉnh sửa"}
         </h1>
         {!isError && (
           <button
@@ -326,7 +326,7 @@ export function ProductForm({
             className="flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {saving ? "Сохранение..." : "Сохранить"}
+            {saving ? "Đang lưu..." : "Lưu"}
           </button>
         )}
       </div>
@@ -335,7 +335,7 @@ export function ProductForm({
       {isError ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-2 text-destructive text-sm">
           <Package className="h-6 w-6 opacity-50" />
-          Ошибка загрузки товара
+          Lỗi tải sản phẩm
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
@@ -343,40 +343,40 @@ export function ProductForm({
 
             {/* Basic info */}
             <section className="space-y-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Основное</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Thông tin cơ bản</h2>
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Название</label>
+                  <label className="text-sm font-medium">Tên</label>
                   <Input
                     value={form.title}
                     onChange={(e) => setField("title", e.target.value)}
-                    placeholder="Название товара"
+                    placeholder="Tên sản phẩm"
                     disabled={disabled}
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Статус</label>
+                    <label className="text-sm font-medium">Trạng thái</label>
                     <select
                       value={form.status}
                       onChange={(e) => setField("status", e.target.value as FormState["status"])}
                       disabled={disabled}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50"
                     >
-                      <option value="draft">Черновик</option>
-                      <option value="published">Опубликован</option>
-                      <option value="rejected">Отклонён</option>
+                      <option value="draft">Nháp</option>
+                      <option value="published">Đã đăng</option>
+                      <option value="rejected">Từ chối</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Категория</label>
+                    <label className="text-sm font-medium">Danh mục</label>
                     <select
                       value={form.categoryId}
                       onChange={(e) => setField("categoryId", e.target.value)}
                       disabled={disabled}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50"
                     >
-                      <option value="">— без категории —</option>
+                      <option value="">— không có danh mục —</option>
                       {flatCats.map((c) => (
                         <option key={c.id} value={c.id}>
                           {"  ".repeat(c.depth)}{c.depth > 0 ? "↳ " : ""}{c.name}
@@ -385,7 +385,7 @@ export function ProductForm({
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Себестоимость ₽</label>
+                    <label className="text-sm font-medium">Giá vốn ₽</label>
                     <Input
                       value={form.cost}
                       onChange={(e) => setField("cost", e.target.value)}
@@ -402,7 +402,7 @@ export function ProductForm({
             {/* Images */}
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Изображения</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Hình ảnh</h2>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -410,7 +410,7 @@ export function ProductForm({
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border hover:bg-accent transition-colors disabled:opacity-50"
                 >
                   {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  Загрузить
+                  Tải lên
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
               </div>
@@ -423,7 +423,7 @@ export function ProductForm({
                   className="w-full border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors disabled:opacity-50"
                 >
                   <Package className="h-8 w-8 opacity-40" />
-                  <span className="text-sm">Нажмите для загрузки изображений</span>
+                  <span className="text-sm">Nhấn để tải ảnh lên</span>
                 </button>
               ) : (
                 <div className="grid grid-cols-4 gap-2">
@@ -445,14 +445,14 @@ export function ProductForm({
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
                       {idx === 0 && (
                         <div className="absolute top-1 left-1 bg-primary text-primary-foreground rounded text-[10px] px-1 py-0.5 font-medium leading-none">
-                          Обложка
+                          Ảnh bìa
                         </div>
                       )}
                       {idx !== 0 && (
                         <button
                           type="button"
                           onClick={() => setThumbnail(idx)}
-                          title="Сделать обложкой"
+                          title="Đặt làm ảnh bìa"
                           className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 bg-black/60 text-white rounded p-0.5 transition-opacity"
                         >
                           <Star className="h-3 w-3" />
@@ -474,7 +474,7 @@ export function ProductForm({
               )}
               {form.images.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Первое изображение — обложка. Перетащите для изменения порядка.
+                  Ảnh đầu tiên là ảnh bìa. Kéo để thay đổi thứ tự.
                 </p>
               )}
             </section>
@@ -482,19 +482,19 @@ export function ProductForm({
             {/* Variants */}
             <section className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Варианты ({activeVariants.length})
+                Biến thể ({activeVariants.length})
               </h2>
 
               <div className="border rounded-lg overflow-hidden">
                 <div className="grid grid-cols-[1fr_140px_100px_40px] gap-2 px-3 py-2 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
-                  <span>Название</span>
-                  <span>Артикул</span>
-                  <span>Склад</span>
+                  <span>Tên</span>
+                  <span>Mã SP</span>
+                  <span>Tồn kho</span>
                   <span />
                 </div>
 
                 {activeVariants.length === 0 ? (
-                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">Нет вариантов</div>
+                  <div className="px-3 py-4 text-sm text-muted-foreground text-center">Không có biến thể</div>
                 ) : (
                   <div className="divide-y">
                     {activeVariants.map((v) => (
@@ -505,14 +505,14 @@ export function ProductForm({
                         <input
                           value={v.title}
                           onChange={(e) => patchVariant(v._key, "title", e.target.value)}
-                          placeholder="Название варианта"
+                          placeholder="Tên biến thể"
                           disabled={disabled}
                           className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         />
                         <input
                           value={v.sku}
                           onChange={(e) => patchVariant(v._key, "sku", e.target.value)}
-                          placeholder="Артикул"
+                          placeholder="Mã sản phẩm"
                           disabled={disabled}
                           className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         />
@@ -546,7 +546,7 @@ export function ProductForm({
                     className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Добавить вариант
+                    Thêm biến thể
                   </button>
                 </div>
               </div>

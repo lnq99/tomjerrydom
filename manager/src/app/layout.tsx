@@ -4,12 +4,12 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "TomJerry Manager",
-  description: "Панель управления магазином",
+  description: "Bảng điều khiển cửa hàng",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru">
+    <html lang="vi">
       <body>
         <Providers>{children}</Providers>
       </body>

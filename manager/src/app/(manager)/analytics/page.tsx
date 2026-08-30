@@ -6,14 +6,14 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts"
 import { subDays, format, startOfDay, parseISO } from "date-fns"
-import { ru } from "date-fns/locale"
+import { vi } from "date-fns/locale"
 import { listOrders, type AdminOrder } from "@/lib/api"
 import { formatRub } from "@/lib/utils"
 
 const RANGES = [
-  { label: "7 дн", days: 7 },
-  { label: "30 дн", days: 30 },
-  { label: "90 дн", days: 90 },
+  { label: "7 ng", days: 7 },
+  { label: "30 ng", days: 30 },
+  { label: "90 ng", days: 90 },
 ]
 
 export default function AnalyticsPage() {
@@ -56,7 +56,7 @@ export default function AnalyticsPage() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="border-b px-4 py-3 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">Аналитика</h1>
+        <h1 className="text-xl font-bold">Phân tích</h1>
         <div className="flex gap-1">
           {RANGES.map((r) => (
             <button
@@ -79,16 +79,16 @@ export default function AnalyticsPage() {
       <div className="p-4 space-y-6">
         {/* KPI cards */}
         <div className="grid grid-cols-3 gap-3">
-          <StatCard label="Заказов" value={String(stats.count)} loading={isLoading} />
-          <StatCard label="Выручка" value={formatRub(stats.revenue)} loading={isLoading} />
-          <StatCard label="Ср. чек" value={formatRub(stats.avg)} loading={isLoading} />
+          <StatCard label="Đơn hàng" value={String(stats.count)} loading={isLoading} />
+          <StatCard label="Doanh thu" value={formatRub(stats.revenue)} loading={isLoading} />
+          <StatCard label="TB/đơn" value={formatRub(stats.avg)} loading={isLoading} />
         </div>
 
         {/* Chart */}
         <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm font-medium mb-4">Выручка по дням</p>
+          <p className="text-sm font-medium mb-4">Doanh thu theo ngày</p>
           {isLoading ? (
-            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Загрузка...</div>
+            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Đang tải...</div>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -107,7 +107,7 @@ export default function AnalyticsPage() {
                   axisLine={false}
                 />
                 <Tooltip
-                  formatter={(v: number) => [formatRub(v), "Выручка"]}
+                  formatter={(v: number) => [formatRub(v), "Doanh thu"]}
                   contentStyle={{
                     fontSize: 12,
                     borderRadius: 8,
@@ -124,16 +124,16 @@ export default function AnalyticsPage() {
         {/* Recent orders */}
         <div className="rounded-lg border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b">
-            <p className="text-sm font-medium">Последние заказы</p>
+            <p className="text-sm font-medium">Đơn hàng gần đây</p>
           </div>
           {isLoading ? (
-            <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">Загрузка...</div>
+            <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">Đang tải...</div>
           ) : (
             <div className="divide-y">
               {orders.slice(0, 10).map((o) => <RecentOrderRow key={o.id} order={o} />)}
               {orders.length === 0 && (
                 <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">
-                  Нет заказов за период
+                  Không có đơn hàng trong kỳ
                 </div>
               )}
             </div>
@@ -154,11 +154,11 @@ function StatCard({ label, value, loading }: { label: string; value: string; loa
 }
 
 function RecentOrderRow({ order }: { order: AdminOrder }) {
-  const date = format(parseISO(order.created_at), "d MMM, HH:mm", { locale: ru })
+  const date = format(parseISO(order.created_at), "d MMM, HH:mm", { locale: vi })
   const customer =
     [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
     order.customer?.email ||
-    "Гость"
+    "Khách"
   const isCancelled = order.status === "cancelled"
 
   return (

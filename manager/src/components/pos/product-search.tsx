@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Search, LayoutGrid, List, Minus, Plus } from "lucide-react"
+import { Search, LayoutGrid, List } from "lucide-react"
+import { QtyControl } from "@/components/pos/qty-control"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -26,12 +27,12 @@ type Props = {
   onAddItem: (item: LineItem) => void
 }
 
-/** "Оптом от 20 000 ₽" → "Опт 20к", retail stays as-is */
+/** "Оптом от 20 000 ₽" → "Sỉ 20k", retail stays as-is */
 function shortLabel(tier: Tier): string {
   if (tier.min_order_amount === 0) return tier.label
   const rubles = tier.min_order_amount / 100
-  const k = rubles >= 1000 ? `${Math.round(rubles / 1000)}к` : String(rubles)
-  return `Опт ${k}`
+  const k = rubles >= 1000 ? `${Math.round(rubles / 1000)}k` : String(rubles)
+  return `Sỉ ${k}`
 }
 
 export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) {
@@ -100,7 +101,7 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Поиск товаров..."
+            placeholder="Tìm kiếm sản phẩm..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -130,11 +131,11 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
       </div>
 
       {isLoading && (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Загрузка...</div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Đang tải...</div>
       )}
 
       {!isLoading && products.length === 0 && (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Ничего не найдено</div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Không tìm thấy</div>
       )}
 
       {/* Cards */}
@@ -163,8 +164,8 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
             style={{ gridTemplateColumns: `auto 1fr 80px ${tiers.map(() => "72px").join(" ")} 36px` }}
           >
             <div className="w-9 mr-3" />
-            <div>Товар</div>
-            <div className="text-right">Себест.</div>
+            <div>Sản phẩm</div>
+            <div className="text-right">Giá vốn</div>
             {tiers.map((t) => (
               <div key={t.id} className={cn("text-right", t.id === tierId ? "text-primary font-semibold" : "")}>
                 {shortLabel(t)}
@@ -192,7 +193,7 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{product.title}</p>
-                  {variantCount > 1 && <p className="text-xs text-muted-foreground">{variantCount} вар.</p>}
+                  {variantCount > 1 && <p className="text-xs text-muted-foreground">{variantCount} mẫu</p>}
                 </div>
                 <div className="text-right text-xs text-muted-foreground">{cost ? formatRub(cost) : "—"}</div>
                 {tiers.map((t) => (
@@ -249,11 +250,11 @@ function ProductCard({ product, tiers, tierId, tierPrice, cost, allPrices, onTap
         : <div className="aspect-square w-full bg-muted" />}
       <div className="flex flex-col gap-0.5 p-2">
         <span className="text-xs font-medium line-clamp-2 leading-snug">{product.title}</span>
-        {variantCount > 1 && <span className="text-[10px] text-muted-foreground">{variantCount} вар. →</span>}
+        {variantCount > 1 && <span className="text-[10px] text-muted-foreground">{variantCount} mẫu →</span>}
         {tierPrice
           ? <span className="text-sm font-bold mt-0.5">{formatRub(tierPrice)}</span>
-          : <span className="text-xs text-muted-foreground mt-0.5">нет цены</span>}
-        {cost > 0 && <span className="text-[10px] text-muted-foreground">себ. {formatRub(cost)}</span>}
+          : <span className="text-xs text-muted-foreground mt-0.5">chưa có giá</span>}
+        {cost > 0 && <span className="text-[10px] text-muted-foreground">vốn: {formatRub(cost)}</span>}
         {otherTiers.length > 0 && (
           <div className="mt-1 flex flex-col gap-0.5 border-t pt-1">
             {otherTiers.map((t) => (
@@ -307,7 +308,7 @@ function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
             <div>
               <DialogTitle>{product.title}</DialogTitle>
               {tierPrice > 0 && (
-                <p className="text-sm text-muted-foreground">{formatRub(tierPrice)} / шт.</p>
+                <p className="text-sm text-muted-foreground">{formatRub(tierPrice)} / cái</p>
               )}
             </div>
           </div>
@@ -324,24 +325,11 @@ function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
                     {formatRub(tierPrice * qty)}
                   </span>
                 )}
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => adjust(variant.id, -1)}
-                    disabled={qty === 0}
-                    className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors disabled:opacity-30"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="w-7 text-center text-sm tabular-nums">{qty}</span>
-                  <button
-                    type="button"
-                    onClick={() => adjust(variant.id, +1)}
-                    className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <QtyControl
+                  value={qty}
+                  onChange={(n) => setQtys((prev) => ({ ...prev, [variant.id]: n }))}
+                  min={0}
+                />
               </div>
             )
           })}
@@ -352,7 +340,7 @@ function VariantPicker({ product, tierPrice, onConfirm, onClose }: {
           disabled={totalQty === 0}
           onClick={handleConfirm}
         >
-          {totalQty > 0 ? `Добавить (${totalQty} шт.)` : "Выберите количество"}
+          {totalQty > 0 ? `Thêm (${totalQty} cái)` : "Chọn số lượng"}
         </Button>
       </DialogContent>
     </Dialog>

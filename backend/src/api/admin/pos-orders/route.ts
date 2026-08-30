@@ -7,6 +7,7 @@ type PosItem = {
   variantTitle?: string
   quantity: number
   unitPrice: number
+  thumbnail?: string | null
 }
 
 type CreatePosOrderBody = {
@@ -40,6 +41,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       variant_id: item.variantId,
       quantity: item.quantity,
       unit_price: item.unitPrice,
+      thumbnail: item.thumbnail ?? undefined,
     }))
   )
 

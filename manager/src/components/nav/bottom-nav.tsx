@@ -6,11 +6,11 @@ import { ShoppingCart, ClipboardList, Package, BarChart2, Clapperboard } from "l
 import { cn } from "@/lib/utils"
 
 const items = [
-  { href: "/pos", icon: ShoppingCart, label: "Касса" },
-  { href: "/orders", icon: ClipboardList, label: "Заказы" },
-  { href: "/products", icon: Package, label: "Товары" },
-  { href: "/analytics", icon: BarChart2, label: "Аналитика" },
-  { href: "/media", icon: Clapperboard, label: "Медиа" },
+  { href: "/pos", icon: ShoppingCart, label: "Quầy bán" },
+  { href: "/orders", icon: ClipboardList, label: "Đơn hàng" },
+  { href: "/products", icon: Package, label: "Sản phẩm" },
+  { href: "/analytics", icon: BarChart2, label: "Phân tích" },
+  { href: "/media", icon: Clapperboard, label: "Truyền thông" },
 ]
 
 export function BottomNav() {

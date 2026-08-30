@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Minus, Plus, Trash2, Pencil, Check, QrCode, Phone, Settings, CheckCircle, Printer, Undo2 } from "lucide-react"
+import { Trash2, Pencil, Check, QrCode, Phone, Settings, CheckCircle, Printer, Undo2, Plus, X } from "lucide-react"
+import { QtyControl } from "@/components/pos/qty-control"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,8 @@ function shortTierLabel(tier: Tier): string {
   return `Sỉ ${r >= 1000 ? `${Math.round(r / 1000)}k` : r}`
 }
 
+type CartTabInfo = { id: string; label: string; hasItems: boolean; isActive: boolean }
+
 type Props = {
   cart: Cart
   total: number
@@ -30,6 +33,12 @@ type Props = {
   onSetPrice: (variantId: string, price: number) => void
   onRemove: (variantId: string) => void
   onClear: () => void
+  onOrderCreated?: (orderId: string) => void
+  cartTabs: CartTabInfo[]
+  onSwitchTab: (id: string) => void
+  onAddTab: () => void
+  onCloseTab: (id: string) => void
+  onRenameTab?: (id: string, label: string) => void
 }
 
 type SaleResult = {
@@ -38,7 +47,7 @@ type SaleResult = {
   total: number
 }
 
-export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, onSetPrice, onRemove, onClear }: Props) {
+export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, onSetPrice, onRemove, onClear, onOrderCreated, cartTabs, onSwitchTab, onAddTab, onCloseTab, onRenameTab }: Props) {
   const [bankingOpen, setBankingOpen] = useState(false)
   const [banking, setBanking] = useState<BankingDetails>({ name: "", phone: "", qrUrl: "" })
   const [selling, setSelling] = useState(false)
@@ -61,6 +70,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
           variantTitle: i.variantTitle !== i.productTitle ? i.variantTitle : undefined,
           quantity: i.quantity,
           unitPrice: i.unitPrice,
+          thumbnail: i.thumbnail,
         })),
         total,
         tierId,
@@ -86,13 +96,15 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
           variantTitle: i.variantTitle !== i.productTitle ? i.variantTitle : undefined,
           quantity: i.quantity,
           unitPrice: i.unitPrice,
+          thumbnail: i.thumbnail,
         })),
         total,
         tierId,
         mode: "order",
       })
       onClear()
-      toast.success(`Заказ #${result.order.display_id} создан`)
+      onOrderCreated?.(result.order.id)
+      toast.success(`Đơn #${result.order.display_id} đã tạo`)
     } catch (e: any) {
       toast.error(e?.message ?? "Ошибка при создании заказа")
     } finally {
@@ -102,6 +114,30 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
 
   return (
     <div className="flex flex-col h-full border-l bg-background relative">
+      {/* Customer tab bar */}
+      <div className="border-b px-2 py-1.5 flex items-center gap-1 overflow-x-auto shrink-0 bg-muted/30">
+        {cartTabs.map((tab) => (
+          <TabButton
+            key={tab.id}
+            tab={tab}
+            onSwitch={onSwitchTab}
+            onClose={onCloseTab}
+            onRename={onRenameTab}
+            showClose={cartTabs.length > 1}
+          />
+        ))}
+        {cartTabs.length < 5 && (
+          <button
+            type="button"
+            onClick={onAddTab}
+            title="Thêm khách"
+            className="shrink-0 h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       {/* Success overlay */}
       {saleResult && (
         <SaleSuccessOverlay
@@ -222,6 +258,82 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         total={total}
         banking={banking}
       />
+    </div>
+  )
+}
+
+// ── Tab button with inline rename ─────────────────────────────────────────────
+
+function TabButton({ tab, onSwitch, onClose, onRename, showClose }: {
+  tab: CartTabInfo
+  onSwitch: (id: string) => void
+  onClose: (id: string) => void
+  onRename?: (id: string, label: string) => void
+  showClose: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(tab.label)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function startEdit() {
+    if (!tab.isActive || !onRename) return
+    setDraft(tab.label)
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  function commit() {
+    onRename?.(tab.id, draft)
+    setEditing(false)
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1 rounded-md pl-2 pr-1 py-1 text-xs font-medium shrink-0 transition-colors",
+        tab.isActive
+          ? "bg-primary text-primary-foreground"
+          : "bg-background border text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
+      )}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit()
+            if (e.key === "Escape") setEditing(false)
+          }}
+          className="w-20 bg-transparent border-b border-primary-foreground/50 focus:outline-none text-xs font-medium"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => tab.isActive ? startEdit() : onSwitch(tab.id)}
+          title={tab.isActive && onRename ? "Nhấn để đổi tên" : undefined}
+          className="flex items-center gap-1.5 max-w-[80px] truncate"
+        >
+          <span className="truncate">{tab.label}</span>
+          {tab.hasItems && !tab.isActive && (
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shrink-0" />
+          )}
+        </button>
+      )}
+      {showClose && !editing && (
+        <button
+          type="button"
+          onClick={() => onClose(tab.id)}
+          className={cn(
+            "ml-0.5 rounded p-0.5 hover:bg-black/10 shrink-0",
+            tab.isActive ? "hover:bg-white/20" : ""
+          )}
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
     </div>
   )
 }
@@ -555,23 +667,11 @@ function CartItem({
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onSetQty(item.variantId, item.quantity - 1)}
-            className="h-7 w-7 rounded border flex items-center justify-center hover:bg-accent"
-          >
-            <Minus className="h-3 w-3" />
-          </button>
-          <span className="w-6 text-center text-sm">{item.quantity}</span>
-          <button
-            type="button"
-            onClick={() => onSetQty(item.variantId, item.quantity + 1)}
-            className="h-7 w-7 rounded border flex items-center justify-center hover:bg-accent"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
-        </div>
+        <QtyControl
+          value={item.quantity}
+          onChange={(qty) => onSetQty(item.variantId, qty)}
+          min={0}
+        />
 
         <span className="text-xs text-muted-foreground">×</span>
 

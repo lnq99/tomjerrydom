@@ -238,6 +238,7 @@ export type PosOrderItem = {
   variantTitle?: string
   quantity: number
   unitPrice: number
+  thumbnail?: string | null
 }
 
 export type PosOrder = {
@@ -261,6 +262,41 @@ export async function cancelPosOrder(id: string): Promise<void> {
   await apiFetch(`/admin/pos-orders?id=${encodeURIComponent(id)}`, { method: "DELETE" })
 }
 
+// ── POS Order Detail ─────────────────────────────────────────────────────────
+export type OrderDetailItem = {
+  id: string
+  title: string
+  variant_id: string | null
+  quantity: number
+  unit_price: number
+  thumbnail: string | null
+  metadata: Record<string, unknown>
+}
+
+export type OrderDetail = {
+  id: string
+  display_id: number
+  status: string
+  created_at: string
+  metadata: Record<string, unknown>
+  items: OrderDetailItem[]
+}
+
+export async function getPosOrder(id: string): Promise<{ order: OrderDetail }> {
+  return apiFetch(`/admin/pos-orders/${id}`)
+}
+
+type PosOrderPatchItem =
+  | { action: "update"; id: string; quantity?: number; unit_price?: number; metadata?: Record<string, unknown> }
+  | { action: "add"; title: string; variant_id?: string; quantity?: number; unit_price?: number; metadata?: Record<string, unknown> }
+
+export async function updatePosOrder(
+  id: string,
+  data: { items?: PosOrderPatchItem[]; metadata?: Record<string, unknown>; complete?: boolean }
+): Promise<{ success: boolean }> {
+  return apiFetch(`/admin/pos-orders/${id}`, { method: "PATCH", body: JSON.stringify(data) })
+}
+
 // ── Orders ───────────────────────────────────────────────────────────────────
 export type AdminOrder = {
   id: string
@@ -282,6 +318,7 @@ export async function listOrders(params?: {
   qs.set("limit", String(params?.limit ?? 50))
   qs.set("offset", String(params?.offset ?? 0))
   qs.set("fields", "id,display_id,status,total,subtotal,created_at,*customer,*items")
+  qs.set("order", "-created_at")
   if (params?.created_at_gte) qs.set("created_at[gte]", params.created_at_gte)
   return apiFetch(`/admin/orders?${qs}`)
 }

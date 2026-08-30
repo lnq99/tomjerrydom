@@ -67,19 +67,19 @@ function AddItemForm({
 
     const detectedType = guessType(file.name)
     if (!detectedType) {
-      toast.error("Неподдерживаемый формат файла")
+      toast.error("Định dạng tệp không được hỗ trợ")
       return
     }
 
     setUploading(true)
-    setUploadProgress(`Загрузка ${file.name}…`)
+    setUploadProgress(`Đang tải ${file.name}…`)
 
     try {
       const { url, fileId } = await uploadFile(file)
       setUploadedFile({ url, fileId, type: detectedType, name: file.name })
       setUploadProgress(null)
     } catch {
-      toast.error("Ошибка при загрузке файла")
+      toast.error("Lỗi khi tải tệp")
       setUploadProgress(null)
     } finally {
       setUploading(false)
@@ -127,7 +127,7 @@ function AddItemForm({
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-md border border-dashed hover:border-border w-full"
       >
         <Plus className="h-4 w-4" />
-        Добавить {section === "hero" ? "слайд" : "видео"}
+        Thêm {section === "hero" ? "slide" : "video"}
       </button>
     )
   }
@@ -141,14 +141,14 @@ function AddItemForm({
           onClick={() => setMode("upload")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${mode === "upload" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
-          <Upload className="h-3.5 w-3.5" /> Загрузить
+          <Upload className="h-3.5 w-3.5" /> Tải lên
         </button>
         <button
           type="button"
           onClick={() => setMode("url")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${mode === "url" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
-          <LinkIcon className="h-3.5 w-3.5" /> По ссылке
+          <LinkIcon className="h-3.5 w-3.5" /> Theo link
         </button>
       </div>
 
@@ -189,7 +189,7 @@ function AddItemForm({
               </div>
               <input
                 type="text"
-                placeholder="Подпись (необязательно)"
+                placeholder="Chú thích (tùy chọn)"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -201,11 +201,11 @@ function AddItemForm({
                   disabled={uploading}
                   className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
                 >
-                  {uploading ? "Сохранение…" : "Добавить"}
+                  {uploading ? "Đang lưu…" : "Thêm"}
                 </button>
                 <button type="button" onClick={reset}
                   className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:bg-muted">
-                  Отмена
+                  Hủy
                 </button>
               </div>
             </div>
@@ -226,7 +226,7 @@ function AddItemForm({
                 <>
                   <Upload className="h-7 w-7 text-muted-foreground/50" />
                   <div className="text-center">
-                    <p className="text-sm font-medium">Нажмите или перетащите файл</p>
+                    <p className="text-sm font-medium">Nhấn hoặc kéo thả tệp vào đây</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {section === "hero" ? "MP4, MOV, WEBM, JPG, PNG, WEBP" : "MP4, MOV, WEBM"}
                     </p>
@@ -239,7 +239,7 @@ function AddItemForm({
           {!uploadedFile && (
             <button type="button" onClick={reset}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left">
-              Отмена
+              Hủy
             </button>
           )}
         </>
@@ -253,14 +253,14 @@ function AddItemForm({
                 onClick={() => setUrlType("video")}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-colors ${urlType === "video" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
               >
-                <Video className="h-3.5 w-3.5" /> Видео
+                <Video className="h-3.5 w-3.5" /> Video
               </button>
               <button
                 type="button"
                 onClick={() => setUrlType("image")}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-colors ${urlType === "image" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}
               >
-                <ImageIcon className="h-3.5 w-3.5" /> Изображение
+                <ImageIcon className="h-3.5 w-3.5" /> Hình ảnh
               </button>
             </div>
           )}
@@ -274,7 +274,7 @@ function AddItemForm({
           />
           <input
             type="text"
-            placeholder="Подпись (необязательно)"
+            placeholder="Chú thích (tùy chọn)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -285,11 +285,11 @@ function AddItemForm({
               disabled={urlLoading || !urlValue.trim()}
               className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
             >
-              {urlLoading ? "Добавление…" : "Добавить"}
+              {urlLoading ? "Đang thêm…" : "Thêm"}
             </button>
             <button type="button" onClick={reset}
               className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:bg-muted">
-              Отмена
+              Hủy
             </button>
           </div>
         </form>
@@ -327,7 +327,7 @@ function MediaCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5">
           <span className="text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-            {item.type === "video" ? "Видео" : "Фото"}
+            {item.type === "video" ? "Video" : "Ảnh"}
           </span>
           {item.title && <span className="text-sm font-medium truncate">{item.title}</span>}
         </div>
@@ -337,16 +337,16 @@ function MediaCard({
       <div className="flex flex-col gap-1 shrink-0">
         <div className="flex gap-1">
           <button type="button" onClick={onMoveUp} disabled={isFirst}
-            className="p-1 rounded hover:bg-muted disabled:opacity-30 transition-colors" aria-label="Вверх">
+            className="p-1 rounded hover:bg-muted disabled:opacity-30 transition-colors" aria-label="Lên">
             <ChevronUp className="h-4 w-4" />
           </button>
           <button type="button" onClick={onMoveDown} disabled={isLast}
-            className="p-1 rounded hover:bg-muted disabled:opacity-30 transition-colors" aria-label="Вниз">
+            className="p-1 rounded hover:bg-muted disabled:opacity-30 transition-colors" aria-label="Xuống">
             <ChevronDown className="h-4 w-4" />
           </button>
         </div>
         <button type="button" onClick={onDelete}
-          className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors" aria-label="Удалить">
+          className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors" aria-label="Xóa">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
@@ -378,24 +378,24 @@ function MediaSection({
       createMediaItem({ section, ...d }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["media", section] })
-      toast.success("Добавлено")
+      toast.success("Đã thêm")
     },
-    onError: () => toast.error("Ошибка при добавлении"),
+    onError: () => toast.error("Lỗi khi thêm"),
   })
 
   const deleteMutation = useMutation({
     mutationFn: deleteMediaItem,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["media", section] })
-      toast.success("Удалено")
+      toast.success("Đã xóa")
     },
-    onError: () => toast.error("Ошибка при удалении"),
+    onError: () => toast.error("Lỗi khi xóa"),
   })
 
   const reorderMutation = useMutation({
     mutationFn: reorderMediaItems,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["media", section] }),
-    onError: () => toast.error("Ошибка при сохранении порядка"),
+    onError: () => toast.error("Lỗi khi lưu thứ tự"),
   })
 
   const handleMove = (index: number, direction: -1 | 1) => {
@@ -415,7 +415,7 @@ function MediaSection({
         <div className="flex items-center gap-2 mb-1">
           <Icon className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-base font-semibold">{title}</h2>
-          <span className="ml-auto text-xs text-muted-foreground">{items.length} шт.</span>
+          <span className="ml-auto text-xs text-muted-foreground">{items.length} cái</span>
         </div>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
@@ -450,25 +450,25 @@ export default function MediaPage() {
   return (
     <div className="p-4 md:p-8 max-w-2xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-xl font-bold">Медиа витрины</h1>
+        <h1 className="text-xl font-bold">Truyền thông gian hàng</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Управление слайдами героя и видео в разделе «Смотрите нас». Порядок на сайте совпадает с порядком здесь.
+          Quản lý slide trang chủ và video mục "Xem chúng tôi". Thứ tự trên trang web trùng với thứ tự ở đây.
         </p>
       </div>
 
       <div className="flex flex-col gap-10">
         <MediaSection
           section="hero"
-          title="Героя (слайдер)"
+          title="Trang chủ (slider)"
           icon={Film}
-          description="Видео и изображения чередуются в полноэкранном слайдере на главной. Рекомендуемое соотношение 16:9."
+          description="Video và hình ảnh xen kẽ trong slider toàn màn hình trang chủ. Tỉ lệ khuyến nghị 16:9."
         />
         <div className="border-t" />
         <MediaSection
           section="reels"
-          title="Смотрите нас (рилсы)"
+          title="Xem chúng tôi (reels)"
           icon={Video}
-          description="Вертикальные видео 9:16. Файлы загружаются в R2 автоматически."
+          description="Video dọc 9:16. Tệp được tải lên R2 tự động."
         />
       </div>
     </div>

@@ -27,7 +27,7 @@ export default function PricingPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-        Загрузка...
+        Đang tải...
       </div>
     )
   }
@@ -39,8 +39,8 @@ export default function PricingPage() {
   return (
     <div className="flex flex-col h-full">
       <div className="border-b px-4 py-3">
-        <h1 className="text-xl font-bold mb-3">Ценообразование</h1>
-        <p className="text-xs text-muted-foreground mb-3">Цена = Закупка × (1 + Наценка%)</p>
+        <h1 className="text-xl font-bold mb-3">Định giá</h1>
+        <p className="text-xs text-muted-foreground mb-3">Giá = Nhập × (1 + Lợi nhuận%)</p>
         <div className="flex gap-1">
           {(["margins", "costs"] as Tab[]).map((t) => (
             <button
@@ -54,7 +54,7 @@ export default function PricingPage() {
                   : "bg-background text-muted-foreground border-border hover:bg-accent",
               ].join(" ")}
             >
-              {t === "margins" ? "Наценки" : "Закупочные цены"}
+              {t === "margins" ? "Lợi nhuận" : "Giá nhập"}
             </button>
           ))}
         </div>
@@ -86,8 +86,8 @@ function MarginsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => voi
           tier_profit: profits[cat.id] ?? cat.tier_profit,
         }))
       ),
-    onSuccess: () => { toast.success("Наценки сохранены"); onSaved() },
-    onError: () => toast.error("Ошибка сохранения"),
+    onSuccess: () => { toast.success("Đã lưu lợi nhuận"); onSaved() },
+    onError: () => toast.error("Lỗi lưu"),
   })
 
   const set = (catId: string, tierId: string, v: string) => {
@@ -98,7 +98,7 @@ function MarginsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => voi
   return (
     <div className="p-4 space-y-4">
       <p className="text-sm text-muted-foreground">
-        Если категория не настроена — применяется значение по умолчанию.
+        Nếu danh mục chưa được cấu hình, giá trị mặc định sẽ được áp dụng.
       </p>
 
       {/* Mobile: vertical cards */}
@@ -106,7 +106,7 @@ function MarginsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => voi
         {/* Default row */}
         <div className="rounded-lg border bg-muted/30 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium">По умолчанию</span>
+            <span className="text-sm font-medium">Mặc định</span>
             <Badge variant="secondary">fallback</Badge>
           </div>
           <div className="space-y-1">
@@ -149,7 +149,7 @@ function MarginsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => voi
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Категория</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Danh mục</th>
               {data.tiers.map((t) => (
                 <th key={t.id} className="px-4 py-3 text-center font-medium text-muted-foreground">{t.label}</th>
               ))}
@@ -158,7 +158,7 @@ function MarginsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => voi
           <tbody className="divide-y">
             <tr className="bg-muted/20">
               <td className="px-4 py-3 flex items-center gap-2">
-                <span className="font-medium">По умолчанию</span>
+                <span className="font-medium">Mặc định</span>
                 <Badge variant="secondary" className="text-xs">fallback</Badge>
               </td>
               {data.tiers.map((t) => (
@@ -197,7 +197,7 @@ function MarginsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => voi
           disabled={saveMutation.isPending}
           onClick={() => saveMutation.mutate()}
         >
-          {saveMutation.isPending ? "Сохранение..." : "Сохранить наценки"}
+          {saveMutation.isPending ? "Đang lưu..." : "Lưu lợi nhuận"}
         </Button>
       </div>
     </div>
@@ -226,17 +226,17 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
       saveProductCosts(
         [...dirty].map((id) => ({ product_id: id, cost: toKopecks(costs[id] ?? "0") }))
       ),
-    onSuccess: () => { toast.success("Закупочные цены сохранены"); setDirty(new Set()); onSaved() },
-    onError: () => toast.error("Ошибка сохранения"),
+    onSuccess: () => { toast.success("Đã lưu giá nhập"); setDirty(new Set()); onSaved() },
+    onError: () => toast.error("Lỗi lưu"),
   })
 
   const syncMutation = useMutation({
     mutationFn: syncPrices,
     onSuccess: (r) => {
-      toast.success(`Синхронизировано: ${r.updated} обновлено, ${r.created} создано`)
+      toast.success(`Đã đồng bộ: ${r.updated} cập nhật, ${r.created} tạo mới`)
       onSaved()
     },
-    onError: () => toast.error("Ошибка синхронизации"),
+    onError: () => toast.error("Lỗi đồng bộ"),
   })
 
   function getPreview(prod: typeof data.products[0], tierId: string): string {
@@ -250,16 +250,16 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Введите закупочную цену в рублях.</p>
+        <p className="text-sm text-muted-foreground">Nhập giá nhập hàng.</p>
         <Button
           size="sm"
           variant="outline"
           disabled={syncMutation.isPending || dirty.size > 0}
-          title={dirty.size > 0 ? "Сначала сохраните изменения" : undefined}
+          title={dirty.size > 0 ? "Lưu thay đổi trước" : undefined}
           onClick={() => syncMutation.mutate()}
         >
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-          Синхронизировать
+          Đồng bộ
         </Button>
       </div>
 
@@ -277,13 +277,13 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
                 <p className="text-sm font-medium truncate">{prod.title}</p>
                 <p className="text-xs text-muted-foreground">{prod.category_name ?? "—"}</p>
               </div>
-              {dirty.has(prod.id) && <Badge variant="warning">изм.</Badge>}
+              {dirty.has(prod.id) && <Badge variant="warning">đã sửa</Badge>}
             </div>
             <div className="flex items-center gap-2 mb-2">
               <Input
                 type="number"
                 min={0}
-                placeholder="Закупка ₽"
+                placeholder="Nhập ₽"
                 className="h-8 flex-1 text-sm"
                 value={costs[prod.id] ?? ""}
                 onChange={(e) => setCost(prod.id, e.target.value)}
@@ -306,9 +306,9 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground" colSpan={2}>Товар</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Категория</th>
-              <th className="px-4 py-3 text-center font-medium text-muted-foreground">Закупка (₽)</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground" colSpan={2}>Sản phẩm</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Danh mục</th>
+              <th className="px-4 py-3 text-center font-medium text-muted-foreground">Nhập (₽)</th>
               {data.tiers.map((t) => (
                 <th key={t.id} className="px-4 py-3 text-center font-medium text-muted-foreground">{t.label}</th>
               ))}
@@ -327,7 +327,7 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium line-clamp-1">{prod.title}</span>
-                    {dirty.has(prod.id) && <Badge variant="warning" className="text-[10px] shrink-0">изм.</Badge>}
+                    {dirty.has(prod.id) && <Badge variant="warning" className="text-[10px] shrink-0">đã sửa</Badge>}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{prod.category_name ?? "—"}</td>
@@ -358,7 +358,7 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
           disabled={saveMutation.isPending || dirty.size === 0}
           onClick={() => saveMutation.mutate()}
         >
-          {saveMutation.isPending ? "Сохранение..." : dirty.size > 0 ? `Сохранить (${dirty.size})` : "Сохранить"}
+          {saveMutation.isPending ? "Đang lưu..." : dirty.size > 0 ? `Lưu (${dirty.size})` : "Lưu"}
         </Button>
       </div>
     </div>

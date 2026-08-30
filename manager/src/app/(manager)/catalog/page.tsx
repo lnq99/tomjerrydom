@@ -31,9 +31,9 @@ function toNodes(cats: AdminCategory[]): CatNode[] {
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
-  published: { label: "Опубликован", variant: "success" },
-  draft:     { label: "Черновик",   variant: "secondary" },
-  rejected:  { label: "Отклонён",   variant: "outline" },
+  published: { label: "Đã đăng", variant: "success" },
+  draft:     { label: "Nháp",    variant: "secondary" },
+  rejected:  { label: "Từ chối", variant: "outline" },
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -60,21 +60,21 @@ export default function CatalogPage() {
   return (
     <div className="flex flex-col h-full">
       <div className="border-b px-4 py-3">
-        <h1 className="text-xl font-bold">Каталог</h1>
+        <h1 className="text-xl font-bold">Danh mục</h1>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── Category tree (left panel) ── */}
         <div className="w-64 shrink-0 border-r flex flex-col overflow-hidden">
           <div className="px-3 py-2 border-b">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Категории</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Danh mục</span>
           </div>
           <div className="flex-1 relative overflow-hidden">
             {isLoading && (
-              <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">Загрузка...</div>
+              <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">Đang tải...</div>
             )}
             {isError && (
-              <div className="flex items-center justify-center h-32 text-destructive text-sm">Ошибка</div>
+              <div className="flex items-center justify-center h-32 text-destructive text-sm">Lỗi</div>
             )}
             {roots && (
               <CatalogTree
@@ -93,7 +93,7 @@ export default function CatalogPage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
               <ChevronRight className="h-8 w-8 opacity-30" />
-              <span className="text-sm">Выберите категорию</span>
+              <span className="text-sm">Chọn danh mục</span>
             </div>
           )}
         </div>
@@ -138,7 +138,7 @@ function CatalogTree({
       )
       qc.invalidateQueries({ queryKey: ["product-categories"] })
     } catch {
-      toast.error("Не удалось сохранить порядок")
+      toast.error("Không thể lưu thứ tự")
       qc.invalidateQueries({ queryKey: ["product-categories"] })
     }
   }
@@ -254,22 +254,22 @@ function ProductsPanel({ categoryId, categoryName }: { categoryId: string; categ
     },
     {
       field: "title",
-      headerName: "Название",
+      headerName: "Tên",
       flex: 2,
       cellRenderer: ({ data: p }: { data: AdminProduct }) => (
         <span className="font-medium">{p.title}</span>
       ),
     },
     {
-      headerName: "Варианты",
+      headerName: "Biến thể",
       width: 100,
       valueGetter: ({ data: p }) => p?.variants?.length ?? 0,
       cellRenderer: ({ value }: { value: number }) => (
-        <span className="text-muted-foreground">{value} вар.</span>
+        <span className="text-muted-foreground">{value} mẫu</span>
       ),
     },
     {
-      headerName: "Мин. цена",
+      headerName: "Giá tối thiểu",
       width: 120,
       valueGetter: ({ data: p }) => {
         const prices = p?.variants?.flatMap((v) => v.prices ?? []).filter((pr) => pr.currency_code === "rub")
@@ -281,7 +281,7 @@ function ProductsPanel({ categoryId, categoryName }: { categoryId: string; categ
     },
     {
       field: "status",
-      headerName: "Статус",
+      headerName: "Trạng thái",
       width: 130,
       cellRenderer: ({ data: p }: { data: AdminProduct }) => {
         const s = STATUS_MAP[p.status] ?? { label: p.status, variant: "outline" as const }
@@ -298,17 +298,17 @@ function ProductsPanel({ categoryId, categoryName }: { categoryId: string; categ
     <>
       <div className="border-b px-4 py-2 flex items-center justify-between shrink-0">
         <span className="font-medium text-sm">{categoryName}</span>
-        <span className="text-xs text-muted-foreground">{data?.count ?? "—"} товаров</span>
+        <span className="text-xs text-muted-foreground">{data?.count ?? "—"} sản phẩm</span>
       </div>
 
       <div className="flex-1 relative overflow-hidden">
         {isLoading && (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Загрузка...</div>
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Đang tải...</div>
         )}
         {!isLoading && products.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
             <Package className="h-6 w-6 opacity-30" />
-            <span className="text-sm">Нет товаров</span>
+            <span className="text-sm">Không có sản phẩm</span>
           </div>
         )}
         {!isLoading && products.length > 0 && (

@@ -21,14 +21,14 @@ export default function ProfilePage() {
 
   function handleSave() {
     saveBankingDetails({ name, phone, qrUrl })
-    toast.success("Реквизиты сохранены")
+    toast.success("Đã lưu thông tin")
   }
 
   return (
     <div className="flex flex-col h-full">
       <div className="border-b px-4 py-3">
-        <h1 className="text-xl font-bold">Профиль</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Реквизиты для приёма оплаты от покупателей</p>
+        <h1 className="text-xl font-bold">Hồ sơ</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">Thông tin thanh toán từ khách hàng</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -37,10 +37,10 @@ export default function ProfilePage() {
           <div className="space-y-1.5">
             <label className="text-sm font-medium flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-muted-foreground" />
-              Имя кассира
+              Tên thu ngân
             </label>
             <Input
-              placeholder="Иван Иванов"
+              placeholder="Nguyễn Văn A"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -49,7 +49,7 @@ export default function ProfilePage() {
           <div className="space-y-1.5">
             <label className="text-sm font-medium flex items-center gap-1.5">
               <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-              Номер телефона (СБП)
+              Số điện thoại (thanh toán)
             </label>
             <Input
               type="tel"
@@ -58,14 +58,14 @@ export default function ProfilePage() {
               onChange={(e) => setPhone(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Покупатель переводит по этому номеру через СБП или Тинькофф
+              Khách hàng chuyển khoản qua số này
             </p>
           </div>
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium flex items-center gap-1.5">
               <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
-              QR-код (ссылка на изображение)
+              Mã QR (link hình ảnh)
             </label>
             <Input
               placeholder="https://..."
@@ -73,8 +73,8 @@ export default function ProfilePage() {
               onChange={(e) => setQrUrl(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Вставьте ссылку на QR-код из банковского приложения.
-              Скачайте его в банке, загрузите в медиа и скопируйте URL.
+              Dán link mã QR từ ứng dụng ngân hàng.
+              Tải xuống từ ngân hàng, tải lên media và sao chép URL.
             </p>
             {qrUrl && (
               <img
@@ -86,7 +86,7 @@ export default function ProfilePage() {
           </div>
 
           <Button onClick={handleSave} className="w-full">
-            Сохранить
+            Lưu
           </Button>
         </div>
       </div>

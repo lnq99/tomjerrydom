@@ -1,35 +1,58 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { ChevronDown, ChevronRight, Search } from "lucide-react"
+import { Search, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { listOrders, type AdminOrder } from "@/lib/api"
 import { formatRub } from "@/lib/utils"
-import { format } from "date-fns"
-import { ru } from "date-fns/locale"
+import { format, startOfDay, subDays } from "date-fns"
+import { vi } from "date-fns/locale"
+import { cn } from "@/lib/utils"
 
-const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" | "outline" }> = {
-  completed:      { label: "Выполнен",          variant: "success" },
-  pending:        { label: "Ожидает оплаты",    variant: "warning" },
-  requires_action:{ label: "Требует действия",  variant: "warning" },
-  cancelled:      { label: "Отменён",           variant: "destructive" },
-  archived:       { label: "Архив",             variant: "secondary" },
-  draft:          { label: "Черновик",          variant: "outline" },
+const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" | "outline"; dot: string }> = {
+  completed:       { label: "Hoàn thành",    variant: "success",     dot: "bg-green-500" },
+  pending:         { label: "Chờ thanh toán", variant: "warning",     dot: "bg-amber-400" },
+  requires_action: { label: "Cần xử lý",     variant: "warning",     dot: "bg-orange-500" },
+  cancelled:       { label: "Đã hủy",        variant: "destructive", dot: "bg-red-500" },
+  archived:        { label: "Lưu trữ",       variant: "secondary",   dot: "bg-gray-400" },
+  draft:           { label: "Nháp",          variant: "outline",     dot: "bg-gray-300" },
 }
 
-const ALL_STATUSES = ["all", "pending", "completed", "cancelled", "requires_action"]
+const DATE_FILTERS = [
+  { id: "all",    label: "Tất cả" },
+  { id: "today",  label: "Hôm nay" },
+  { id: "7days",  label: "7 ngày qua" },
+] as const
+
+const STATUS_FILTERS = [
+  { id: "all",             label: "Tất cả" },
+  { id: "pending",         label: "Chờ thanh toán" },
+  { id: "completed",       label: "Hoàn thành" },
+  { id: "cancelled",       label: "Đã hủy" },
+  { id: "requires_action", label: "Cần xử lý" },
+] as const
+
+type DateFilter = "all" | "today" | "7days"
+
+function getDateGte(filter: DateFilter): string | undefined {
+  if (filter === "today") return startOfDay(new Date()).toISOString()
+  if (filter === "7days") return subDays(startOfDay(new Date()), 7).toISOString()
+  return undefined
+}
 
 export default function OrdersPage() {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all")
   const [offset, setOffset] = useState(0)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["orders", offset],
-    queryFn: () => listOrders({ limit: 50, offset }),
+    queryKey: ["orders", offset, dateFilter],
+    queryFn: () => listOrders({ limit: 50, offset, created_at_gte: getDateGte(dateFilter) }),
   })
 
   const orders = data?.orders ?? []
@@ -46,55 +69,69 @@ export default function OrdersPage() {
     return matchStatus && matchSearch
   })
 
+  function setDateAndReset(f: DateFilter) {
+    setDateFilter(f)
+    setOffset(0)
+  }
+
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b px-4 py-3 space-y-3">
-        <h1 className="text-xl font-bold">Заказы</h1>
-
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="ID заказа или email клиента..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+      {/* Header */}
+      <div className="border-b px-4 pt-4 pb-3 space-y-3 shrink-0">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">Đơn hàng</h1>
+          <span className="text-xs text-muted-foreground">{count} đơn</span>
         </div>
 
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {ALL_STATUSES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setStatusFilter(s)}
-              className={[
-                "shrink-0 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
-                statusFilter === s
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:bg-accent",
-              ].join(" ")}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Tìm ID hoặc email khách..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Filter row: date | status */}
+        <div className="flex gap-1 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden">
+          {DATE_FILTERS.map((f) => (
+            <Chip
+              key={f.id}
+              active={dateFilter === f.id}
+              onClick={() => setDateAndReset(f.id as DateFilter)}
             >
-              {s === "all" ? "Все" : (STATUS_MAP[s]?.label ?? s)}
-            </button>
+              {f.label}
+            </Chip>
+          ))}
+
+          <span className="text-border mx-1 shrink-0 self-center select-none">|</span>
+
+          {STATUS_FILTERS.map((f) => (
+            <Chip
+              key={f.id}
+              active={statusFilter === f.id}
+              onClick={() => setStatusFilter(f.id)}
+            >
+              {f.label}
+            </Chip>
           ))}
         </div>
       </div>
 
+      {/* Order list */}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Загрузка...</div>
+          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Đang tải...</div>
         ) : filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Заказов не найдено</div>
+          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Không tìm thấy đơn hàng</div>
         ) : (
           <div className="divide-y">
             {filtered.map((order) => (
               <OrderRow
                 key={order.id}
                 order={order}
-                expanded={expandedId === order.id}
-                onToggle={() => setExpandedId(expandedId === order.id ? null : order.id)}
+                onClick={() => router.push(`/orders/${order.id}`)}
               />
             ))}
           </div>
@@ -107,71 +144,68 @@ export default function OrdersPage() {
               onClick={() => setOffset(offset + 50)}
               className="text-sm text-primary hover:underline"
             >
-              Загрузить ещё
+              Tải thêm
             </button>
           </div>
         )}
-      </div>
-
-      <div className="border-t px-4 py-2 text-xs text-muted-foreground">
-        Показано {filtered.length} из {count} заказов
       </div>
     </div>
   )
 }
 
-function OrderRow({ order, expanded, onToggle }: { order: AdminOrder; expanded: boolean; onToggle: () => void }) {
-  const s = STATUS_MAP[order.status] ?? { label: order.status, variant: "outline" as const }
-  const date = format(new Date(order.created_at), "d MMM yyyy, HH:mm", { locale: ru })
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "shrink-0 rounded-full px-3 py-1 text-xs font-medium border transition-colors whitespace-nowrap",
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background text-muted-foreground border-border hover:bg-accent"
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function OrderRow({ order, onClick }: { order: AdminOrder; onClick: () => void }) {
+  const s = STATUS_MAP[order.status] ?? { label: order.status, variant: "outline" as const, dot: "bg-gray-300" }
+  const date = format(new Date(order.created_at), "d MMM, HH:mm", { locale: vi })
   const customerName =
     [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
     order.customer?.email ||
-    "Гость"
+    "Khách"
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent transition-colors"
-      >
-        <span className="text-muted-foreground shrink-0">
-          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors"
+    >
+      {/* Status dot */}
+      <span className={cn("h-2 w-2 rounded-full shrink-0 mt-0.5", s.dot)} />
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-sm">#{order.display_id}</span>
-            <Badge variant={s.variant}>{s.label}</Badge>
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5 truncate">{customerName} · {date}</div>
+      {/* Main info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm">#{order.display_id}</span>
+          <span className="text-xs text-muted-foreground truncate">{customerName}</span>
         </div>
-
-        <span className="font-semibold text-sm shrink-0">{formatRub(order.total)}</span>
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-4 pt-1 bg-muted/30 border-t">
-          <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wide">Состав заказа</p>
-          <div className="space-y-1">
-            {(order.items ?? []).map((item) => (
-              <div key={item.id} className="flex justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {item.title} × {item.quantity}
-                </span>
-                <span>{formatRub(item.unit_price * item.quantity)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between text-sm font-semibold mt-2 pt-2 border-t">
-            <span>Итого</span>
-            <span>{formatRub(order.total)}</span>
-          </div>
-          {order.customer?.email && (
-            <p className="text-xs text-muted-foreground mt-2">Email: {order.customer.email}</p>
-          )}
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs text-muted-foreground">{date}</span>
+          <Badge variant={s.variant} className="text-[10px] px-1.5 py-0">
+            {s.label}
+          </Badge>
         </div>
-      )}
-    </div>
+      </div>
+
+      {/* Amount + arrow */}
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="font-semibold text-sm">{formatRub(order.total)}</span>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </div>
+    </button>
   )
 }
