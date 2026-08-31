@@ -18,6 +18,7 @@ import {
 type CartTab = {
   id: string
   label: string
+  phone?: string
   cart: Cart
   tierId: string
 }
@@ -40,7 +41,7 @@ type TabsAction =
   | { type: "ADD_TAB" }
   | { type: "CLOSE_TAB"; tabId: string }
   | { type: "SWITCH_TAB"; tabId: string }
-  | { type: "RENAME_TAB"; tabId: string; label: string }
+  | { type: "UPDATE_TAB"; tabId: string; label: string; phone: string }
 
 function cartReducer(state: Cart, action: CartAction): Cart {
   switch (action.type) {
@@ -94,11 +95,11 @@ function tabsReducer(state: TabsState, action: TabsAction): TabsState {
     }
     case "SWITCH_TAB":
       return { ...state, activeId: action.tabId }
-    case "RENAME_TAB":
+    case "UPDATE_TAB":
       return {
         ...state,
         tabs: state.tabs.map((t) =>
-          t.id === action.tabId ? { ...t, label: action.label.trim() || t.label } : t
+          t.id === action.tabId ? { ...t, label: action.label || t.label, phone: action.phone || undefined } : t
         ),
       }
   }
@@ -191,6 +192,7 @@ export default function PosPage() {
   const cartTabs = state.tabs.map((t) => ({
     id: t.id,
     label: t.label,
+    phone: t.phone,
     hasItems: t.cart.items.length > 0,
     isActive: t.id === state.activeId,
   }))
@@ -250,7 +252,7 @@ export default function PosPage() {
             onSwitchTab={(id) => dispatch({ type: "SWITCH_TAB", tabId: id })}
             onAddTab={() => dispatch({ type: "ADD_TAB" })}
             onCloseTab={(id) => dispatch({ type: "CLOSE_TAB", tabId: id })}
-            onRenameTab={(id, label) => dispatch({ type: "RENAME_TAB", tabId: id, label })}
+            onUpdateTab={(id, label, phone) => dispatch({ type: "UPDATE_TAB", tabId: id, label, phone })}
           />
         </div>
       </div>

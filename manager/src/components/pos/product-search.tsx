@@ -292,8 +292,10 @@ function ProductCard({ product, tiers, tierId, tierPrice, cost, showCost, allPri
       <div className="flex flex-col gap-0.5 p-2">
         <span className="text-xs font-medium line-clamp-2 leading-snug">{product.title}</span>
         {(product.variants?.length ?? 0) > 1 && <span className="text-[10px] text-muted-foreground">{product.variants!.length} mẫu →</span>}
-        {tierPrice ? <span className="text-sm font-bold mt-0.5">{formatRub(tierPrice)}</span> : <span className="text-xs text-muted-foreground mt-0.5">chưa có giá</span>}
-        {showCost && cost > 0 && <span className="text-[10px] text-muted-foreground">vốn: {formatRub(cost)}</span>}
+        <div className="flex items-baseline justify-between mt-0.5">
+          {tierPrice ? <span className="text-sm font-bold">{formatRub(tierPrice)}</span> : <span className="text-xs text-muted-foreground">chưa có giá</span>}
+          {showCost && cost > 0 && <span className="text-[10px] text-muted-foreground shrink-0 ml-1">vốn: {formatRub(cost)}</span>}
+        </div>
         {otherTiers.length > 0 && (
           <div className="mt-1 flex flex-col gap-0.5 border-t pt-1">
             {otherTiers.map((t) => (

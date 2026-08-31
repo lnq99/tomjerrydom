@@ -21,7 +21,7 @@ function shortTierLabel(tier: Tier): string {
   return `Sỉ ${r >= 1000 ? `${Math.round(r / 1000)}k` : r}`
 }
 
-type CartTabInfo = { id: string; label: string; hasItems: boolean; isActive: boolean }
+type CartTabInfo = { id: string; label: string; phone?: string; hasItems: boolean; isActive: boolean }
 
 type Props = {
   cart: Cart
@@ -38,7 +38,7 @@ type Props = {
   onSwitchTab: (id: string) => void
   onAddTab: () => void
   onCloseTab: (id: string) => void
-  onRenameTab?: (id: string, label: string) => void
+  onUpdateTab?: (id: string, label: string, phone: string) => void
 }
 
 type SaleResult = {
@@ -48,7 +48,7 @@ type SaleResult = {
   tabId?: string
 }
 
-export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, onSetPrice, onRemove, onClear, onOrderCreated, cartTabs, onSwitchTab, onAddTab, onCloseTab, onRenameTab }: Props) {
+export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, onSetPrice, onRemove, onClear, onOrderCreated, cartTabs, onSwitchTab, onAddTab, onCloseTab, onUpdateTab }: Props) {
   const [bankingOpen, setBankingOpen] = useState(false)
   const [banking, setBanking] = useState<BankingDetails>({ name: "", phone: "", qrUrl: "" })
   const [selling, setSelling] = useState(false)
@@ -126,7 +126,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
             tab={tab}
             onSwitch={onSwitchTab}
             onClose={onCloseTab}
-            onRename={onRenameTab}
+            onUpdate={onUpdateTab}
             showClose={cartTabs.length > 1}
           />
         ))}
@@ -270,79 +270,113 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
   )
 }
 
-// ── Tab button with inline rename ─────────────────────────────────────────────
+// ── Tab button with customer detail popup ─────────────────────────────────────
 
-function TabButton({ tab, onSwitch, onClose, onRename, showClose }: {
+function TabButton({ tab, onSwitch, onClose, onUpdate, showClose }: {
   tab: CartTabInfo
   onSwitch: (id: string) => void
   onClose: (id: string) => void
-  onRename?: (id: string, label: string) => void
+  onUpdate?: (id: string, label: string, phone: string) => void
   showClose: boolean
 }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(tab.label)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [draftLabel, setDraftLabel] = useState("")
+  const [draftPhone, setDraftPhone] = useState("")
 
-  function startEdit() {
-    if (!tab.isActive || !onRename) return
-    setDraft(tab.label)
-    setEditing(true)
-    setTimeout(() => inputRef.current?.select(), 0)
+  function openDialog() {
+    setDraftLabel(tab.label)
+    setDraftPhone(tab.phone ?? "")
+    setDialogOpen(true)
   }
 
   function commit() {
-    onRename?.(tab.id, draft)
-    setEditing(false)
+    onUpdate?.(tab.id, draftLabel.trim() || tab.label, draftPhone.trim())
+    setDialogOpen(false)
   }
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-1 rounded-md pl-2 pr-1 py-1 text-xs font-medium shrink-0 transition-colors",
-        tab.isActive
-          ? "bg-primary text-primary-foreground"
-          : "bg-background border text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
-      )}
-    >
-      {editing ? (
-        <input
-          ref={inputRef}
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit()
-            if (e.key === "Escape") setEditing(false)
-          }}
-          className="w-20 bg-transparent border-b border-primary-foreground/50 focus:outline-none text-xs font-medium"
-        />
-      ) : (
+    <>
+      <div
+        className={cn(
+          "flex items-center gap-1 rounded-md pl-2 pr-1 py-1 text-xs font-medium shrink-0 transition-colors",
+          tab.isActive
+            ? "bg-primary text-primary-foreground"
+            : "bg-background border text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
+        )}
+      >
         <button
           type="button"
-          onClick={() => tab.isActive ? startEdit() : onSwitch(tab.id)}
-          title={tab.isActive && onRename ? "Nhấn để đổi tên" : undefined}
-          className="flex items-center gap-1.5 max-w-[80px] truncate"
+          onClick={() => tab.isActive ? openDialog() : onSwitch(tab.id)}
+          className="flex flex-col items-start max-w-[80px] leading-none"
         >
-          <span className="truncate">{tab.label}</span>
+          <span className="truncate max-w-full">{tab.label}</span>
+          {tab.phone && tab.isActive && (
+            <span className="text-[9px] opacity-70 truncate max-w-full">{tab.phone}</span>
+          )}
           {tab.hasItems && !tab.isActive && (
-            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shrink-0" />
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shrink-0 mt-0.5" />
           )}
         </button>
-      )}
-      {showClose && !editing && (
-        <button
-          type="button"
-          onClick={() => onClose(tab.id)}
-          className={cn(
-            "ml-0.5 rounded p-0.5 hover:bg-black/10 shrink-0",
-            tab.isActive ? "hover:bg-white/20" : ""
-          )}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      )}
-    </div>
+        {showClose && (
+          <button
+            type="button"
+            onClick={() => onClose(tab.id)}
+            className={cn(
+              "ml-0.5 rounded p-0.5 hover:bg-black/10 shrink-0",
+              tab.isActive ? "hover:bg-white/20" : ""
+            )}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) setDialogOpen(false) }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Thông tin khách</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Tên khách</label>
+              <Input
+                autoFocus
+                value={draftLabel}
+                onChange={(e) => setDraftLabel(e.target.value)}
+                placeholder="Khách 1"
+                onKeyDown={(e) => { if (e.key === "Enter") commit() }}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Số điện thoại</label>
+              <Input
+                type="tel"
+                value={draftPhone}
+                onChange={(e) => setDraftPhone(e.target.value)}
+                placeholder="+7 ..."
+                onKeyDown={(e) => { if (e.key === "Enter") commit() }}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDialogOpen(false)}
+              className="flex-1 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={commit}
+              className="flex-1 rounded-md bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Lưu
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

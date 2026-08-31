@@ -113,11 +113,15 @@ export default function ProductsPage() {
 
 // ── Three-dots menu ───────────────────────────────────────────────────────────
 
-function ProductMenu({ product }: { product: AdminProduct }) {
+function ProductMenu({ product, onOpenChange }: { product: AdminProduct; onOpenChange?: (open: boolean) => void }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [open, onOpenChange])
 
   useEffect(() => {
     if (!open) return
@@ -208,7 +212,7 @@ function ProductMenu({ product }: { product: AdminProduct }) {
         <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border bg-popover shadow-lg text-popover-foreground overflow-hidden text-sm">
           <div className="py-1">
             <p className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Trạng thái</p>
-            {(["published", "draft", "rejected"] as const).map((s) => (
+            {(["published", "draft"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -252,25 +256,14 @@ function ProductMenu({ product }: { product: AdminProduct }) {
 
 function ProductRow({ product }: { product: AdminProduct }) {
   const router = useRouter()
-  const qc = useQueryClient()
+  const [menuOpen, setMenuOpen] = useState(false)
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
   const cost = (product.metadata?.cost as number) ?? 0
 
-  async function cycleStatus(e: React.MouseEvent) {
-    e.stopPropagation()
-    const next = product.status === "published" ? "draft" : "published"
-    try {
-      await updateProduct(product.id, { status: next })
-      qc.invalidateQueries({ queryKey: ["products"] })
-    } catch {
-      toast.error("Không thể cập nhật trạng thái")
-    }
-  }
-
   return (
     <li
-      className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors cursor-pointer"
+      className={cn("flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors cursor-pointer relative", menuOpen && "z-10")}
       onClick={() => router.push(`/products/${product.id}`)}
     >
       {product.thumbnail ? (
@@ -284,10 +277,10 @@ function ProductRow({ product }: { product: AdminProduct }) {
           {category} · {product.variants?.length ?? 0} mẫu · {cost ? formatRub(cost) : "—"}
         </p>
       </div>
-      <button type="button" onClick={cycleStatus} title="Đổi trạng thái" className="shrink-0">
+      <span className="shrink-0">
         <Badge variant={s.variant}>{s.label}</Badge>
-      </button>
-      <ProductMenu product={product} />
+      </span>
+      <ProductMenu product={product} onOpenChange={setMenuOpen} />
       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
     </li>
   )
@@ -298,6 +291,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
 function ProductTableRow({ product }: { product: AdminProduct }) {
   const router = useRouter()
   const qc = useQueryClient()
+  const [menuOpen, setMenuOpen] = useState(false)
   const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
   const cost = (product.metadata?.cost as number) ?? 0
@@ -328,7 +322,7 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
 
   return (
     <tr
-      className="hover:bg-accent/50 transition-colors cursor-pointer"
+      className={cn("hover:bg-accent/50 transition-colors cursor-pointer relative", menuOpen && "z-10")}
       onClick={() => router.push(`/products/${product.id}`)}
     >
       <td className="px-4 py-3">
@@ -375,7 +369,7 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
 
       {/* Three-dots menu */}
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <ProductMenu product={product} />
+        <ProductMenu product={product} onOpenChange={setMenuOpen} />
       </td>
     </tr>
   )
