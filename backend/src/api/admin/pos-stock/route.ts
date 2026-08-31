@@ -15,15 +15,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   const { data: variants } = await (query.graph({
     entity: "product_variant",
-    fields: ["id", "*inventory_items"],
+    fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
     filters: { id: variantIds },
-  }) as Promise<{ data: { id: string; inventory_items?: { id: string }[] }[] }>)
+  }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
 
   const inventory_item_ids: Record<string, string | null> = {}
   const invItemToVariant = new Map<string, string>()
 
   for (const variant of variants ?? []) {
-    const invId = variant.inventory_items?.[0]?.id ?? null
+    const inv = variant.inventory_items?.[0]
+    // inventory_item_id is the actual InventoryItem ID; .id is the link record ID
+    const invId = inv?.inventory_item_id ?? inv?.id ?? null
     inventory_item_ids[variant.id] = invId
     if (invId) invItemToVariant.set(invId, variant.id)
   }

@@ -130,8 +130,6 @@ export async function getVariantStock(
   if (!variantIds.length) return { stock: {}, inventory_item_ids: {}, location_ids: {} }
   const qs = new URLSearchParams()
   variantIds.forEach((id) => qs.append("variant_id", id))
-  const locationId = getCachedLocationId()
-  if (locationId) qs.set("location_id", locationId)
   return apiFetch(`/admin/pos-stock?${qs}`)
 }
 
