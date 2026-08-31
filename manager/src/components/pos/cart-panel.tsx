@@ -209,7 +209,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
             Giỏ hàng trống
           </div>
         ) : (
-          <ul className="divide-y">
+          <ul>
             {cart.items.map((item) => (
               <CartItem
                 key={item.variantId}
@@ -685,74 +685,81 @@ function CartItem({
 
   return (
     <li className={cn(
-      "px-4 py-3 flex flex-col gap-1",
+      "flex items-stretch border-b last:border-b-0",
       item.manualPrice && "border-l-2 border-amber-400"
     )}>
-      <div className="flex items-start gap-2">
-        {item.thumbnail && (
-          <img src={item.thumbnail} alt="" className="h-9 w-9 rounded object-cover shrink-0" />
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{item.productTitle}</p>
-          {item.variantTitle !== item.productTitle && (
-            <p className="text-xs text-muted-foreground">{item.variantTitle}</p>
-          )}
-        </div>
-        {item.manualPrice && (
-          <span className="text-[10px] text-amber-500 font-medium shrink-0">thủ công</span>
-        )}
-        <button
-          type="button"
-          onClick={() => onRemove(item.variantId)}
-          className="text-muted-foreground hover:text-destructive shrink-0"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
+      {/* Thumbnail — full height of the row */}
+      {item.thumbnail ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.thumbnail} alt="" className="w-14 object-cover shrink-0" />
+      ) : (
+        <div className="w-14 bg-muted shrink-0 flex items-center justify-center text-muted-foreground text-xs">—</div>
+      )}
 
-      <div className="flex items-center gap-2">
-        <QtyControl
-          value={item.quantity}
-          onChange={(qty) => onSetQty(item.variantId, qty)}
-          min={0}
-        />
-
-        <span className="text-xs text-muted-foreground">×</span>
-
-        {editingPrice ? (
-          <div className="flex items-center gap-1 flex-1">
-            <Input
-              autoFocus
-              type="number"
-              min={0}
-              className="h-7 w-24 text-sm px-2"
-              value={priceInput}
-              onChange={(e) => setPriceInput(e.target.value)}
-              onBlur={commitPrice}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitPrice()
-                if (e.key === "Escape") setEditingPrice(false)
-              }}
-            />
-            <button type="button" onClick={commitPrice}>
-              <Check className="h-4 w-4 text-primary" />
-            </button>
+      {/* Content */}
+      <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-between gap-1.5">
+        {/* Top row: name + delete */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-medium leading-tight truncate">{item.productTitle}</p>
+            {item.variantTitle !== item.productTitle && (
+              <p className="text-xs text-muted-foreground leading-tight">{item.variantTitle}</p>
+            )}
+            {item.manualPrice && (
+              <span className="text-[10px] text-amber-500 font-medium">thủ công</span>
+            )}
           </div>
-        ) : (
           <button
             type="button"
-            onClick={startEdit}
-            className="flex items-center gap-1 group text-left"
-            title="Thay đổi giá"
+            onClick={() => onRemove(item.variantId)}
+            className="text-muted-foreground hover:text-destructive shrink-0 mt-0.5"
           >
-            <span className={cn("text-sm", item.manualPrice && "text-amber-500 font-medium")}>
-              {unitFmt}
-            </span>
-            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Trash2 className="h-4 w-4" />
           </button>
-        )}
+        </div>
 
-        <span className="ml-auto text-sm font-semibold">{lineTotal}</span>
+        {/* Bottom row: qty control × price = total */}
+        <div className="flex items-center gap-2">
+          <QtyControl
+            value={item.quantity}
+            onChange={(qty) => onSetQty(item.variantId, qty)}
+            min={0}
+          />
+          <span className="text-xs text-muted-foreground">×</span>
+          {editingPrice ? (
+            <div className="flex items-center gap-1 flex-1">
+              <Input
+                autoFocus
+                type="number"
+                min={0}
+                className="h-7 w-24 text-sm px-2"
+                value={priceInput}
+                onChange={(e) => setPriceInput(e.target.value)}
+                onBlur={commitPrice}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitPrice()
+                  if (e.key === "Escape") setEditingPrice(false)
+                }}
+              />
+              <button type="button" onClick={commitPrice}>
+                <Check className="h-4 w-4 text-primary" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={startEdit}
+              className="flex items-center gap-1 group text-left"
+              title="Thay đổi giá"
+            >
+              <span className={cn("text-sm", item.manualPrice && "text-amber-500 font-medium")}>
+                {unitFmt}
+              </span>
+              <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          )}
+          <span className="ml-auto text-sm font-semibold">{lineTotal}</span>
+        </div>
       </div>
     </li>
   )

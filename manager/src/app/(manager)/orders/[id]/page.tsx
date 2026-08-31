@@ -41,9 +41,10 @@ const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning"
 
 function initPickState(order: OrderDetail): PickState {
   const meta = order.metadata ?? {}
+  const pickingStarted = !!meta.picking_done || Object.keys((meta.picked_quantities ?? {}) as object).length > 0
   const savedPicked = (meta.picked_quantities ?? {}) as Record<string, number>
   return {
-    picked: Object.fromEntries(order.items.map((i) => [i.id, savedPicked[i.id] ?? i.quantity])),
+    picked: Object.fromEntries(order.items.map((i) => [i.id, pickingStarted ? (savedPicked[i.id] ?? i.quantity) : 0])),
     prices: Object.fromEntries(order.items.map((i) => [i.id, i.unit_price])),
     extras: [],
     customerName: String(meta.customer_name ?? ""),

@@ -75,10 +75,19 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     orderModule.retrieveOrder(id, { relations: ["items"] }),
     query.graph({
       entity: "order",
-      fields: ["id", "payment_status"],
+      fields: ["id", "payment_collections.id", "payment_collections.status"],
       filters: { id },
-    }) as Promise<{ data: { id: string; payment_status: string | null }[] }>,
+    }) as Promise<{ data: { id: string; payment_collections?: { id: string; status: string }[] }[] }>,
   ])
+
+  const paymentCollections = graph?.[0]?.payment_collections ?? []
+  const paymentStatus = paymentCollections.some((pc) => pc.status === "captured")
+    ? "captured"
+    : paymentCollections.some((pc) => pc.status === "partially_captured")
+    ? "partially_captured"
+    : paymentCollections.length > 0
+    ? paymentCollections[0].status
+    : "not_paid"
 
   // Fetch cost from product.metadata.cost (kopecks) for each variant
   const variantIds = ((order as any).items ?? []).map((i: any) => i.variant_id).filter(Boolean)
@@ -100,7 +109,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       id: order.id,
       display_id: order.display_id,
       status: order.status,
-      payment_status: graph?.[0]?.payment_status ?? null,
+      payment_status: paymentStatus,
       created_at: order.created_at,
       metadata: order.metadata ?? {},
       items: ((order as any).items ?? []).map((item: any) => ({
@@ -166,14 +175,88 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     const existing = await orderModule.retrieveOrder(id, { select: ["id", "metadata"] })
     const merged = { ...(existing.metadata ?? {}), ...metadata }
 
+    // When picking is confirmed: create inventory reservations for picked quantities
+    if (metadata.picking_done && !existing.metadata?.picking_done) {
+      try {
+        const inventoryModule = req.scope.resolve(Modules.INVENTORY)
+        const orderWithItems = await orderModule.retrieveOrder(id, { relations: ["items"] })
+        const pickedQtys = (metadata.picked_quantities ?? {}) as Record<string, number>
+
+        const variantIds = ((orderWithItems as any).items ?? [])
+          .map((i: any) => i.variant_id).filter(Boolean)
+
+        if (variantIds.length) {
+          const { data: links } = await (query.graph({
+            entity: "product_variant",
+            fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
+            filters: { id: variantIds },
+          }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+
+          const variantToInvItem = new Map<string, string>()
+          for (const v of links ?? []) {
+            const inv = v.inventory_items?.[0]
+            const invId = inv?.inventory_item_id ?? inv?.id
+            if (invId) variantToInvItem.set(v.id, invId)
+          }
+
+          if (variantToInvItem.size) {
+            const invItemIds = [...variantToInvItem.values()]
+            const levels = await inventoryModule.listInventoryLevels({ inventory_item_id: invItemIds })
+            const levelMap = new Map<string, any>()
+            for (const l of levels as any[]) {
+              const prev = levelMap.get(l.inventory_item_id)
+              if (!prev || (l.stocked_quantity ?? 0) > (prev.stocked_quantity ?? 0)) {
+                levelMap.set(l.inventory_item_id, l)
+              }
+            }
+
+            const reservationInputs: { inventory_item_id: string; location_id: string; quantity: number; line_item_id?: string }[] = []
+            for (const item of (orderWithItems as any).items ?? []) {
+              if (!item.variant_id) continue
+              const qty = pickedQtys[item.id] ?? item.quantity
+              if (qty <= 0) continue
+              const invId = variantToInvItem.get(item.variant_id)
+              if (!invId) continue
+              const level = levelMap.get(invId)
+              if (!level) continue
+              reservationInputs.push({
+                inventory_item_id: invId,
+                location_id: level.location_id,
+                quantity: qty,
+                line_item_id: item.id,
+              })
+            }
+
+            if (reservationInputs.length) {
+              const reservations = await inventoryModule.createReservationItems(reservationInputs as any)
+              merged.reservation_ids = (reservations as any[]).map((r) => r.id)
+            }
+          }
+        }
+      } catch {
+        // Non-fatal: order metadata still saved
+      }
+    }
+
     await orderModule.updateOrders(id, { metadata: merged })
   }
 
   if (complete) {
-    // Deduct stock using picked quantities (once, tracked by stock_deducted flag)
     const orderForComplete = await orderModule.retrieveOrder(id, { relations: ["items"] })
-    if (!(orderForComplete as any).metadata?.stock_deducted) {
-      const pickedQtys = ((orderForComplete as any).metadata?.picked_quantities ?? {}) as Record<string, number>
+    const completeMeta = (orderForComplete as any).metadata ?? {}
+
+    if (!completeMeta.stock_deducted) {
+      // Delete reservations created at picking time
+      const reservationIds = (completeMeta.reservation_ids as string[]) ?? []
+      if (reservationIds.length) {
+        try {
+          const inventoryModule = req.scope.resolve(Modules.INVENTORY)
+          await inventoryModule.deleteReservationItems(reservationIds)
+        } catch { /* non-fatal */ }
+      }
+
+      // Deduct stocked_quantity for picked amounts
+      const pickedQtys = (completeMeta.picked_quantities ?? {}) as Record<string, number>
       await deductVariantStock(
         req.scope,
         ((orderForComplete as any).items ?? []).map((i: any) => ({
@@ -182,7 +265,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
         }))
       )
       await orderModule.updateOrders(id, {
-        metadata: { ...((orderForComplete as any).metadata ?? {}), stock_deducted: true },
+        metadata: { ...completeMeta, stock_deducted: true },
       })
     }
     await orderModule.completeOrder(id)
