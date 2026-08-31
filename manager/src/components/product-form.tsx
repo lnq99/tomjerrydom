@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Package, Loader2, X, Star } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Package, Loader2, X, Star, Eye, EyeOff, Wand2 } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import {
@@ -32,6 +32,7 @@ type VariantRow = {
   inventoryItemId?: string
   locationId?: string
   deleted?: boolean
+  disabled?: boolean
 }
 
 type FormState = {
@@ -45,6 +46,10 @@ type FormState = {
 
 function makeKey() {
   return Math.random().toString(36).slice(2)
+}
+
+function generateSku(): string {
+  return Math.random().toString(36).slice(2, 8).toUpperCase()
 }
 
 function flattenCats(
@@ -70,6 +75,7 @@ function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
     stock,
     initialStock: stock,
     inventoryItemId,
+    disabled: (v.metadata?.disabled as boolean) ?? false,
   }
 }
 
@@ -239,6 +245,13 @@ export function ProductForm({
     }))
   }
 
+  function toggleDisabled(key: string) {
+    setForm((f) => ({
+      ...f,
+      variants: f.variants.map((v) => (v._key === key ? { ...v, disabled: !v.disabled } : v)),
+    }))
+  }
+
   // ── Save ─────────────────────────────────────────────────────
   async function handleSave() {
     if (!form.title.trim()) { toast.error("Nhập tên sản phẩm"); return }
@@ -253,7 +266,7 @@ export function ProductForm({
   }
 
   async function doCreate() {
-    const activeVariants = form.variants.filter((v) => !v.deleted && v.title.trim())
+    const activeVariants = form.variants.filter((v) => !v.deleted && !v.disabled && v.title.trim())
     const input: CreateProductInput = {
       title: form.title.trim(),
       status: form.status,
@@ -297,7 +310,7 @@ export function ProductForm({
 
     const toDelete = form.variants.filter((v) => v.deleted && v.id)
     const toUpdate = form.variants.filter((v) => !v.deleted && v.id)
-    const toCreate = form.variants.filter((v) => !v.deleted && !v.id && v.title.trim())
+    const toCreate = form.variants.filter((v) => !v.deleted && !v.disabled && !v.id && v.title.trim())
 
     await Promise.all(toDelete.map((v) => deleteVariant(product.id, v.id!)))
     const variantFieldsChanged = toUpdate.filter((v) => {
@@ -321,6 +334,19 @@ export function ProductForm({
         })
       )
     )
+
+    // disabled state: update metadata for variants where disabled toggled
+    const disabledChanged = toUpdate.filter((v) => {
+      const orig = product.variants.find((o) => o.id === v.id)
+      return orig && (v.disabled ?? false) !== ((orig.metadata?.disabled as boolean) ?? false)
+    })
+    if (disabledChanged.length > 0) {
+      await Promise.all(
+        disabledChanged.map((v) =>
+          updateVariant(product.id, v.id!, { metadata: { disabled: v.disabled ?? false } })
+        )
+      )
+    }
 
     // stock: only update variants where user typed a new value
     // Use per-variant locationId from pos-stock (actual stocked location), fall back to defaultLocationId
@@ -532,10 +558,11 @@ export function ProductForm({
               </h2>
 
               <div className="border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-[1fr_140px_100px_40px] gap-2 px-3 py-2 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
+                <div className="grid grid-cols-[1fr_150px_90px_32px_32px] gap-2 px-3 py-2 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
                   <span>Tên</span>
                   <span>Mã SP</span>
                   <span>Tồn kho</span>
+                  <span />
                   <span />
                 </div>
 
@@ -546,31 +573,52 @@ export function ProductForm({
                     {activeVariants.map((v) => (
                       <div
                         key={v._key}
-                        className="grid grid-cols-[1fr_140px_100px_40px] gap-2 px-3 py-2 items-center"
+                        className={`grid grid-cols-[1fr_150px_90px_32px_32px] gap-2 px-3 py-2 items-center ${v.disabled ? "opacity-50" : ""}`}
                       >
                         <input
                           value={v.title}
                           onChange={(e) => patchVariant(v._key, "title", e.target.value)}
                           placeholder="Tên biến thể"
                           disabled={disabled}
-                          className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                          className={`h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${v.disabled ? "line-through text-muted-foreground" : ""}`}
                         />
-                        <input
-                          value={v.sku}
-                          onChange={(e) => patchVariant(v._key, "sku", e.target.value)}
-                          placeholder="Mã sản phẩm"
-                          disabled={disabled}
-                          className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                        />
+                        <div className="relative">
+                          <input
+                            value={v.sku}
+                            onChange={(e) => patchVariant(v._key, "sku", e.target.value)}
+                            placeholder="Mã sản phẩm"
+                            disabled={disabled}
+                            className="h-8 w-full rounded border border-input bg-background px-2 pr-7 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                          />
+                          {!v.sku && !disabled && (
+                            <button
+                              type="button"
+                              onClick={() => patchVariant(v._key, "sku", generateSku())}
+                              title="Tự sinh mã SP"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground transition-colors"
+                            >
+                              <Wand2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                         <input
                           value={v.stock}
                           onChange={(e) => patchVariant(v._key, "stock", e.target.value)}
                           placeholder="—"
                           type="number"
                           min="0"
-                          disabled={disabled}
+                          disabled={disabled || v.disabled}
                           className="h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                         />
+                        <button
+                          type="button"
+                          onClick={() => toggleDisabled(v._key)}
+                          disabled={disabled}
+                          title={v.disabled ? "Kích hoạt biến thể" : "Tắt biến thể"}
+                          className={`h-8 w-8 flex items-center justify-center rounded transition-colors disabled:opacity-50 ${v.disabled ? "text-amber-500 hover:bg-amber-50" : "text-muted-foreground hover:bg-accent"}`}
+                        >
+                          {v.disabled ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
                         <button
                           type="button"
                           onClick={() => markDeleted(v._key)}

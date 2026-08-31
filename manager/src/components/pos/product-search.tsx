@@ -106,7 +106,7 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
   }
 
   function handleTap(product: AdminProduct) {
-    const variants = product.variants ?? []
+    const variants = (product.variants ?? []).filter((v) => !v.metadata?.disabled)
     if (variants.length <= 1) {
       addVariant(product, variants[0] ?? { id: product.id, title: product.title, sku: null, prices: [] })
     } else {
@@ -362,7 +362,7 @@ function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onC
         </DialogHeader>
 
         <div className="flex flex-col divide-y border rounded-lg overflow-hidden">
-          {(product.variants ?? []).map((variant) => {
+          {(product.variants ?? []).filter((v) => !v.metadata?.disabled).map((variant) => {
             const qty = qtys[variant.id] ?? 0
             const stock = stockData?.stock[variant.id]
             const managed = variant.manage_inventory !== false && stock !== null && stock !== undefined

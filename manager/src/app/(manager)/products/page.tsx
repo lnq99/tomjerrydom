@@ -1,19 +1,28 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Search, ChevronRight, Plus } from "lucide-react"
+import { Search, ChevronRight, Plus, MoreVertical, Check, Copy, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { listProducts, updateProduct, saveProductCosts, type AdminProduct } from "@/lib/api"
-import { formatRub, rubles, toKopecks } from "@/lib/utils"
+import {
+  listProducts, updateProduct, saveProductCosts, getProduct, createProduct, deleteProduct,
+  type AdminProduct,
+} from "@/lib/api"
+import { formatRub, rubles, toKopecks, cn } from "@/lib/utils"
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
   published: { label: "Đã đăng", variant: "success" },
   draft:     { label: "Nháp",    variant: "secondary" },
   rejected:  { label: "Từ chối", variant: "outline" },
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  published: "Đã đăng",
+  draft: "Nháp",
+  rejected: "Từ chối",
 }
 
 export default function ProductsPage() {
@@ -102,6 +111,143 @@ export default function ProductsPage() {
   )
 }
 
+// ── Three-dots menu ───────────────────────────────────────────────────────────
+
+function ProductMenu({ product }: { product: AdminProduct }) {
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [open])
+
+  async function setStatus(status: string) {
+    setOpen(false)
+    if (product.status === status) return
+    setBusy(true)
+    try {
+      await updateProduct(product.id, { status })
+      qc.invalidateQueries({ queryKey: ["products"] })
+    } catch {
+      toast.error("Lỗi cập nhật trạng thái")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDuplicate() {
+    setOpen(false)
+    setBusy(true)
+    try {
+      const { product: full } = await getProduct(product.id)
+      const varis = (full.variants ?? []).filter((v) => !v.metadata?.disabled)
+      const { product: copy } = await createProduct({
+        title: `${full.title} (copy)`,
+        status: "draft",
+        categories: full.categories?.map((c) => ({ id: c.id })),
+        images: full.images?.map((img) => ({ url: img.url })),
+        thumbnail: full.thumbnail,
+        options: varis.length ? [{ title: "Вариант", values: varis.map((v) => v.title) }] : undefined,
+        variants: varis.length
+          ? varis.map((v) => ({
+              title: v.title,
+              sku: v.sku ?? undefined,
+              manage_inventory: true,
+              prices: [],
+              options: { "Вариант": v.title },
+            }))
+          : undefined,
+      })
+      const cost = (full.metadata?.cost as number) ?? 0
+      if (cost) await saveProductCosts([{ product_id: copy.id, cost }])
+      qc.invalidateQueries({ queryKey: ["products"] })
+      toast.success("Đã nhân đôi sản phẩm")
+    } catch {
+      toast.error("Lỗi nhân đôi sản phẩm")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDelete() {
+    setOpen(false)
+    if (!window.confirm(`Xóa "${product.title}"?`)) return
+    setBusy(true)
+    try {
+      await deleteProduct(product.id)
+      qc.invalidateQueries({ queryKey: ["products"] })
+      toast.success("Đã xóa")
+    } catch {
+      toast.error("Lỗi xóa sản phẩm")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy}
+        className="h-8 w-8 flex items-center justify-center rounded hover:bg-accent text-muted-foreground transition-colors disabled:opacity-40"
+      >
+        {busy
+          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          : <MoreVertical className="h-3.5 w-3.5" />}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border bg-popover shadow-lg text-popover-foreground overflow-hidden text-sm">
+          <div className="py-1">
+            <p className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Trạng thái</p>
+            {(["published", "draft", "rejected"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatus(s)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-accent transition-colors"
+              >
+                {product.status === s
+                  ? <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                  : <span className="h-3.5 w-3.5 shrink-0" />}
+                <span className={product.status === s ? "font-medium" : "text-muted-foreground"}>
+                  {STATUS_LABEL[s]}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="border-t py-1">
+            <button
+              type="button"
+              onClick={handleDuplicate}
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-accent transition-colors"
+            >
+              <Copy className="h-3.5 w-3.5 shrink-0" />
+              Nhân đôi
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 shrink-0" />
+              Xóa
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Mobile card ───────────────────────────────────────────────────────────────
 
 function ProductRow({ product }: { product: AdminProduct }) {
@@ -113,8 +259,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
 
   async function cycleStatus(e: React.MouseEvent) {
     e.stopPropagation()
-    const order = ["draft", "published", "rejected"]
-    const next = order[(order.indexOf(product.status) + 1) % order.length]
+    const next = product.status === "published" ? "draft" : "published"
     try {
       await updateProduct(product.id, { status: next })
       qc.invalidateQueries({ queryKey: ["products"] })
@@ -139,9 +284,10 @@ function ProductRow({ product }: { product: AdminProduct }) {
           {category} · {product.variants?.length ?? 0} mẫu · {cost ? formatRub(cost) : "—"}
         </p>
       </div>
-      <button type="button" onClick={cycleStatus} title="Đổi trạng thái">
+      <button type="button" onClick={cycleStatus} title="Đổi trạng thái" className="shrink-0">
         <Badge variant={s.variant}>{s.label}</Badge>
       </button>
+      <ProductMenu product={product} />
       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
     </li>
   )
@@ -159,9 +305,7 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
   const [editingCost, setEditingCost] = useState(false)
   const [costVal, setCostVal] = useState(() => rubles(cost))
   const [savingCost, setSavingCost] = useState(false)
-  const [savingStatus, setSavingStatus] = useState(false)
 
-  // keep input in sync when query refetches
   useEffect(() => {
     if (!editingCost) setCostVal(rubles(cost))
   }, [cost, editingCost])
@@ -182,24 +326,11 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
     }
   }
 
-  async function saveStatus(newStatus: string) {
-    setSavingStatus(true)
-    try {
-      await updateProduct(product.id, { status: newStatus })
-      qc.invalidateQueries({ queryKey: ["products"] })
-    } catch {
-      toast.error("Không thể cập nhật trạng thái")
-    } finally {
-      setSavingStatus(false)
-    }
-  }
-
   return (
     <tr
       className="hover:bg-accent/50 transition-colors cursor-pointer"
       onClick={() => router.push(`/products/${product.id}`)}
     >
-      {/* Thumbnail */}
       <td className="px-4 py-3">
         {product.thumbnail ? (
           <img src={product.thumbnail} alt="" className="h-10 w-10 rounded object-cover" />
@@ -207,14 +338,8 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
           <div className="h-10 w-10 rounded bg-muted" />
         )}
       </td>
-
-      {/* Title */}
       <td className="px-4 py-3 font-medium">{product.title}</td>
-
-      {/* Category */}
       <td className="px-4 py-3 text-muted-foreground">{category}</td>
-
-      {/* Variants count */}
       <td className="px-4 py-3 text-muted-foreground">{product.variants?.length ?? 0}</td>
 
       {/* Cost — click cell to edit */}
@@ -243,23 +368,14 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
         )}
       </td>
 
-      {/* Status — select dropdown */}
-      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <select
-          value={product.status}
-          disabled={savingStatus}
-          onChange={(e) => saveStatus(e.target.value)}
-          className="text-xs rounded border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-40 cursor-pointer"
-        >
-          <option value="draft">Nháp</option>
-          <option value="published">Đã đăng</option>
-          <option value="rejected">Từ chối</option>
-        </select>
+      {/* Status badge */}
+      <td className="px-4 py-3">
+        <Badge variant={s.variant}>{s.label}</Badge>
       </td>
 
-      {/* Navigate */}
-      <td className="px-4 py-3">
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      {/* Three-dots menu */}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <ProductMenu product={product} />
       </td>
     </tr>
   )

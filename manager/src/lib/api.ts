@@ -89,6 +89,7 @@ export type AdminVariant = {
   inventory_quantity?: number
   manage_inventory?: boolean
   inventory_items?: { id: string; inventory_item_id: string }[]
+  metadata?: Record<string, unknown> | null
 }
 
 export async function listProducts(params?: {
@@ -167,10 +168,14 @@ export async function createProduct(data: CreateProductInput): Promise<{ product
   return apiFetch("/admin/products", { method: "POST", body: JSON.stringify(data) })
 }
 
+export async function deleteProduct(id: string): Promise<void> {
+  await apiFetch(`/admin/products/${id}`, { method: "DELETE" })
+}
+
 export async function updateVariant(
   productId: string,
   variantId: string,
-  data: { title?: string; sku?: string; prices?: { id?: string; currency_code: string; amount: number }[] }
+  data: { title?: string; sku?: string; prices?: { id?: string; currency_code: string; amount: number }[]; metadata?: Record<string, unknown> }
 ): Promise<void> {
   await apiFetch(`/admin/products/${productId}/variants/${variantId}`, {
     method: "POST",
