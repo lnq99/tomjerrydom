@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Search, ChevronRight, SlidersHorizontal } from "lucide-react"
+import { Search, SlidersHorizontal } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -286,7 +286,6 @@ function OrderRow({ order, onClick }: { order: AdminOrder; onClick: () => void }
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className="text-xs text-muted-foreground">{date}</span>
-          <Badge variant={s.variant} className="text-[10px] px-1.5 py-0">{s.label}</Badge>
           {order.status !== "completed" && order.status !== "canceled" && order.payment_status === "captured" && (
             <Badge variant="success" className="text-[10px] px-1.5 py-0">Đã TT</Badge>
           )}
@@ -295,10 +294,7 @@ function OrderRow({ order, onClick }: { order: AdminOrder; onClick: () => void }
           )}
         </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <span className="font-semibold text-sm">{formatRub(order.total)}</span>
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      </div>
+      <span className="font-semibold text-sm shrink-0">{formatRub(order.total)}</span>
     </button>
   )
 }

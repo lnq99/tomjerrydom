@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Search, ChevronRight, Plus, MoreVertical, Check, Copy, Trash2, Loader2 } from "lucide-react"
+import { Search, Plus, MoreVertical, Check, Copy, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -12,12 +13,6 @@ import {
   type AdminProduct,
 } from "@/lib/api"
 import { formatRub, rubles, toKopecks, cn } from "@/lib/utils"
-
-const STATUS_MAP: Record<string, { label: string; variant: "success" | "secondary" | "outline" }> = {
-  published: { label: "Đã đăng", variant: "success" },
-  draft:     { label: "Nháp",    variant: "secondary" },
-  rejected:  { label: "Từ chối", variant: "outline" },
-}
 
 const STATUS_LABEL: Record<string, string> = {
   published: "Đã đăng",
@@ -95,7 +90,6 @@ export default function ProductsPage() {
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Danh mục</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mẫu</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Giá vốn</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Trạng thái</th>
                     <th className="px-4 py-3 w-8"></th>
                   </tr>
                 </thead>
@@ -117,16 +111,29 @@ function ProductMenu({ product, onOpenChange }: { product: AdminProduct; onOpenC
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, right: 0 })
 
   useEffect(() => {
     onOpenChange?.(open)
   }, [open, onOpenChange])
 
+  function handleToggle() {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    }
+    setOpen((o) => !o)
+  }
+
   useEffect(() => {
     if (!open) return
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) setOpen(false)
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
@@ -196,10 +203,11 @@ function ProductMenu({ product, onOpenChange }: { product: AdminProduct; onOpenC
   }
 
   return (
-    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
         disabled={busy}
         className="h-8 w-8 flex items-center justify-center rounded hover:bg-accent text-muted-foreground transition-colors disabled:opacity-40"
       >
@@ -208,8 +216,12 @@ function ProductMenu({ product, onOpenChange }: { product: AdminProduct; onOpenC
           : <MoreVertical className="h-3.5 w-3.5" />}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border bg-popover shadow-lg text-popover-foreground overflow-hidden text-sm">
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[200] w-44 rounded-lg border bg-background shadow-lg overflow-hidden text-sm"
+          style={{ top: pos.top, right: pos.right }}
+        >
           <div className="py-1">
             <p className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Trạng thái</p>
             {(["published", "draft"] as const).map((s) => (
@@ -246,7 +258,8 @@ function ProductMenu({ product, onOpenChange }: { product: AdminProduct; onOpenC
               Xóa
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -257,7 +270,6 @@ function ProductMenu({ product, onOpenChange }: { product: AdminProduct; onOpenC
 function ProductRow({ product }: { product: AdminProduct }) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
-  const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
   const cost = (product.metadata?.cost as number) ?? 0
 
@@ -277,11 +289,10 @@ function ProductRow({ product }: { product: AdminProduct }) {
           {category} · {product.variants?.length ?? 0} mẫu · {cost ? formatRub(cost) : "—"}
         </p>
       </div>
-      <span className="shrink-0">
-        <Badge variant={s.variant}>{s.label}</Badge>
-      </span>
+      {product.status === "draft" && (
+        <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">Nháp</Badge>
+      )}
       <ProductMenu product={product} onOpenChange={setMenuOpen} />
-      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
     </li>
   )
 }
@@ -292,7 +303,6 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
   const router = useRouter()
   const qc = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
-  const s = STATUS_MAP[product.status] ?? { label: product.status, variant: "outline" as const }
   const category = product.categories?.[0]?.name ?? "—"
   const cost = (product.metadata?.cost as number) ?? 0
 
@@ -360,11 +370,6 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
             {cost ? formatRub(cost) : <span className="text-muted-foreground">—</span>}
           </span>
         )}
-      </td>
-
-      {/* Status badge */}
-      <td className="px-4 py-3">
-        <Badge variant={s.variant}>{s.label}</Badge>
       </td>
 
       {/* Three-dots menu */}
