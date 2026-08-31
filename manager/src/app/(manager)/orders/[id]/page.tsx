@@ -32,7 +32,7 @@ type PickState = {
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" | "outline" }> = {
   completed:      { label: "Hoàn thành",    variant: "success" },
-  pending:        { label: "Chờ thanh toán", variant: "warning" },
+  pending:        { label: "Đang xử lý",     variant: "warning" },
   canceled:      { label: "Đã hủy",        variant: "destructive" },
   archived:       { label: "Lưu trữ",       variant: "secondary" },
   draft:          { label: "Nháp",          variant: "outline" },

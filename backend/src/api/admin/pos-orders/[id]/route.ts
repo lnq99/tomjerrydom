@@ -144,6 +144,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params as { id: string }
   const { items, metadata, complete, mark_paid, cancel, archive } = req.body as PatchBody
   const orderModule = req.scope.resolve(Modules.ORDER)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
   if (items) {
     const toUpdate = items.filter((i): i is Extract<ItemAction, { action: "update" }> => i.action === "update")
@@ -281,7 +282,6 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
 
   if (mark_paid) {
     try {
-      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
       const { data: orders } = await (query.graph({
         entity: "order",
         fields: ["id", "total", "payment_collections.id", "payment_collections.status"],
