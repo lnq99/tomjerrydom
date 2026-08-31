@@ -688,13 +688,15 @@ function CartItem({
       "flex items-stretch border-b last:border-b-0",
       item.manualPrice && "border-l-2 border-amber-400"
     )}>
-      {/* Thumbnail — full height of the row */}
-      {item.thumbnail ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.thumbnail} alt="" className="w-14 object-cover shrink-0" />
-      ) : (
-        <div className="w-14 bg-muted shrink-0 flex items-center justify-center text-muted-foreground text-xs">—</div>
-      )}
+      {/* Thumbnail — square with padding so it doesn't bleed to the edges */}
+      <div className="p-2 shrink-0 flex items-center self-stretch">
+        {item.thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.thumbnail} alt="" className="h-12 w-12 rounded object-cover" />
+        ) : (
+          <div className="h-12 w-12 rounded bg-muted flex items-center justify-center text-muted-foreground text-xs">—</div>
+        )}
+      </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-between gap-1.5">

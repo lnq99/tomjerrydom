@@ -294,9 +294,6 @@ export default function OrderDetailPage() {
             {order.status !== "completed" && order.status !== "canceled" && order.payment_status === "captured" && (
               <Badge variant="success">Đã TT</Badge>
             )}
-            {order.status !== "canceled" && order.payment_status === "not_paid" && (
-              <Badge variant="outline" className="text-red-400 border-red-200">Chưa TT</Badge>
-            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {format(new Date(order.created_at), "d MMM yyyy, HH:mm")}
@@ -412,21 +409,20 @@ export default function OrderDetailPage() {
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm">
-              <span className="text-muted-foreground">Tổng: </span>
-              {afterTotal !== beforeTotal && (
-                <span className="line-through text-muted-foreground mr-1 text-xs">{formatRub(beforeTotal)}</span>
-              )}
-              <span className="font-bold">{formatRub(afterTotal)}</span>
+            <div className="text-sm leading-snug">
+              <div>
+                <span className="text-muted-foreground">Tổng: </span>
+                {afterTotal !== beforeTotal && (
+                  <span className="line-through text-muted-foreground mr-1 text-xs">{formatRub(beforeTotal)}</span>
+                )}
+                <span className="font-bold">{formatRub(afterTotal)}</span>
+              </div>
               {(() => {
+                if (!showSensitive) return null
                 const profit = order.items.reduce((s, i) => s + (i.unit_price - i.cost_price) * (ps.picked[i.id] ?? i.quantity), 0)
                 if (profit <= 0) return null
                 return (
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    LN: <span className={showSensitive ? "text-green-600 font-semibold" : ""}>
-                      {showSensitive ? formatRub(profit) : "••••••"}
-                    </span>
-                  </span>
+                  <div className="text-xs text-green-600 font-semibold">LN: {formatRub(profit)}</div>
                 )
               })()}
             </div>
