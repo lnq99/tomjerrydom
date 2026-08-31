@@ -71,8 +71,41 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const orderModule = req.scope.resolve(Modules.ORDER)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  const order = await orderModule.retrieveOrder(id, { relations: ["items"] })
-  const paymentStatus = (order as any).payment_status ?? "not_paid"
+  const [order, { data: paymentGraph }] = await Promise.all([
+    orderModule.retrieveOrder(id, { relations: ["items"] }),
+    query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "payment_collections.id",
+        "payment_collections.status",
+        "payment_collections.payments.id",
+        "payment_collections.payments.captured_at",
+      ],
+      filters: { id },
+    }) as Promise<{
+      data: {
+        id: string
+        payment_collections?: {
+          id: string
+          status: string
+          payments?: { id: string; captured_at?: string | null }[]
+        }[]
+      }[]
+    }>,
+  ])
+
+  const collections = paymentGraph?.[0]?.payment_collections ?? []
+  const hasCapturedPayment = collections.some(
+    (pc) =>
+      pc.status === "captured" ||
+      pc.payments?.some((p) => p.captured_at != null)
+  )
+  const paymentStatus = hasCapturedPayment
+    ? "captured"
+    : collections.length > 0
+    ? collections[0].status ?? "not_paid"
+    : "not_paid"
 
   // Fetch cost from product.metadata.cost (kopecks) for each variant
   const variantIds = ((order as any).items ?? []).map((i: any) => i.variant_id).filter(Boolean)
