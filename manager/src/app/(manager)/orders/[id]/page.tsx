@@ -41,8 +41,9 @@ const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning"
 
 function initPickState(order: OrderDetail): PickState {
   const meta = order.metadata ?? {}
+  const savedPicked = (meta.picked_quantities ?? {}) as Record<string, number>
   return {
-    picked: Object.fromEntries(order.items.map((i) => [i.id, i.quantity])),
+    picked: Object.fromEntries(order.items.map((i) => [i.id, savedPicked[i.id] ?? i.quantity])),
     prices: Object.fromEntries(order.items.map((i) => [i.id, i.unit_price])),
     extras: [],
     customerName: String(meta.customer_name ?? ""),
@@ -121,7 +122,6 @@ export default function OrderDetailPage() {
           ...order.items.map((item) => ({
             action: "update" as const,
             id: item.id,
-            quantity: ps.picked[item.id] ?? item.quantity,
             unit_price: ps.prices[item.id] ?? item.unit_price,
           })),
           ...ps.extras.map((g) => ({
@@ -136,6 +136,10 @@ export default function OrderDetailPage() {
           customer_phone: ps.customerPhone || undefined,
           customer_note: ps.customerNote || undefined,
           picking_done: true,
+          actual_total: afterTotal,
+          picked_quantities: Object.fromEntries(
+            order.items.map((item) => [item.id, ps.picked[item.id] ?? item.quantity])
+          ),
         },
       })
       const result = await refetch()
@@ -143,7 +147,10 @@ export default function OrderDetailPage() {
       setPs(
         newOrder
           ? {
-              picked: Object.fromEntries(newOrder.items.map((i) => [i.id, i.quantity])),
+              picked: Object.fromEntries(newOrder.items.map((i) => {
+                const saved = (newOrder.metadata?.picked_quantities ?? {}) as Record<string, number>
+                return [i.id, saved[i.id] ?? i.quantity]
+              })),
               prices: Object.fromEntries(newOrder.items.map((i) => [i.id, i.unit_price])),
               extras: [],
               customerName: String(newOrder.metadata?.customer_name ?? ""),
@@ -406,6 +413,9 @@ export default function OrderDetailPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm">
               <span className="text-muted-foreground">Tổng: </span>
+              {afterTotal !== beforeTotal && (
+                <span className="line-through text-muted-foreground mr-1 text-xs">{formatRub(beforeTotal)}</span>
+              )}
               <span className="font-bold">{formatRub(afterTotal)}</span>
               {(() => {
                 const profit = order.items.reduce((s, i) => s + (i.unit_price - i.cost_price) * (ps.picked[i.id] ?? i.quantity), 0)
@@ -430,7 +440,18 @@ export default function OrderDetailPage() {
         <div className="border-t px-4 py-3 shrink-0 space-y-1">
           <div className="flex justify-between items-center">
             <div className="text-sm text-muted-foreground">Tổng đơn hàng</div>
-            <div className="font-bold">{formatRub(beforeTotal)}</div>
+            <div className="text-right">
+              {(() => {
+                const actual = order.metadata?.actual_total as number | undefined
+                const showStrike = actual !== undefined && actual !== beforeTotal
+                return (
+                  <>
+                    {showStrike && <div className="text-xs line-through text-muted-foreground">{formatRub(beforeTotal)}</div>}
+                    <div className="font-bold">{formatRub(actual ?? beforeTotal)}</div>
+                  </>
+                )
+              })()}
+            </div>
           </div>
           {(() => {
             const profit = order.items.reduce((s, i) => s + (i.unit_price - i.cost_price) * (ps.picked[i.id] ?? i.quantity), 0)

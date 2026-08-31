@@ -46,16 +46,20 @@ async function deductVariantStock(
       }
     }
 
-    const updates: { id: string; stocked_quantity: number }[] = []
+    const updates: { inventory_item_id: string; location_id: string; stocked_quantity: number }[] = []
     for (const item of withVariant) {
       const invId = variantToInvItem.get(item.variant_id!)
       if (!invId) continue
       const level = levelMap.get(invId)
       if (!level) continue
-      updates.push({ id: level.id, stocked_quantity: (level.stocked_quantity ?? 0) - item.quantity })
+      updates.push({
+        inventory_item_id: invId,
+        location_id: level.location_id,
+        stocked_quantity: (level.stocked_quantity ?? 0) - item.quantity,
+      })
     }
     if (updates.length) {
-      await inventoryModule.updateInventoryLevels(updates)
+      await inventoryModule.updateInventoryLevels(updates as any)
     }
   } catch {
     // Non-fatal
@@ -162,23 +166,25 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     const existing = await orderModule.retrieveOrder(id, { select: ["id", "metadata"] })
     const merged = { ...(existing.metadata ?? {}), ...metadata }
 
-    // When picking is confirmed: deduct stock (once, tracked by stock_deducted flag)
-    if (metadata.picking_done && !existing.metadata?.stock_deducted) {
-      const orderWithItems = await orderModule.retrieveOrder(id, { relations: ["items"] })
-      await deductVariantStock(
-        req.scope,
-        ((orderWithItems as any).items ?? []).map((i: any) => ({
-          variant_id: i.variant_id ?? null,
-          quantity: i.quantity,
-        }))
-      )
-      merged.stock_deducted = true
-    }
-
     await orderModule.updateOrders(id, { metadata: merged })
   }
 
   if (complete) {
+    // Deduct stock using picked quantities (once, tracked by stock_deducted flag)
+    const orderForComplete = await orderModule.retrieveOrder(id, { relations: ["items"] })
+    if (!(orderForComplete as any).metadata?.stock_deducted) {
+      const pickedQtys = ((orderForComplete as any).metadata?.picked_quantities ?? {}) as Record<string, number>
+      await deductVariantStock(
+        req.scope,
+        ((orderForComplete as any).items ?? []).map((i: any) => ({
+          variant_id: i.variant_id ?? null,
+          quantity: pickedQtys[i.id] ?? i.quantity,
+        }))
+      )
+      await orderModule.updateOrders(id, {
+        metadata: { ...((orderForComplete as any).metadata ?? {}), stock_deducted: true },
+      })
+    }
     await orderModule.completeOrder(id)
   }
 

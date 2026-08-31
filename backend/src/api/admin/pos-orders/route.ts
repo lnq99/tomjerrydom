@@ -68,16 +68,20 @@ async function deductVariantStock(
     const levelMap = new Map<string, any>(levels.map((l: any) => [l.inventory_item_id, l]))
 
     // Build updates (deduct quantity, allow negative)
-    const updates: { id: string; stocked_quantity: number }[] = []
+    const updates: { inventory_item_id: string; location_id: string; stocked_quantity: number }[] = []
     for (const item of withVariant) {
       const invId = variantToInvItem.get(item.variant_id!)
       if (!invId) continue
       const level = levelMap.get(invId)
       if (!level) continue
-      updates.push({ id: level.id, stocked_quantity: (level.stocked_quantity ?? 0) - item.quantity })
+      updates.push({
+        inventory_item_id: invId,
+        location_id: level.location_id,
+        stocked_quantity: (level.stocked_quantity ?? 0) - item.quantity,
+      })
     }
     if (updates.length) {
-      await inventoryModule.updateInventoryLevels(updates)
+      await inventoryModule.updateInventoryLevels(updates as any)
     }
   } catch {
     // Non-fatal: order is created even if stock deduction fails

@@ -294,7 +294,18 @@ function OrderRow({ order, onClick }: { order: AdminOrder; onClick: () => void }
           )}
         </div>
       </div>
-      <span className="font-semibold text-sm shrink-0">{formatRub(order.total)}</span>
+      {(() => {
+        const actual = order.metadata?.actual_total as number | undefined
+        const showStrike = actual !== undefined && actual !== order.total
+        return (
+          <div className="text-right shrink-0">
+            {showStrike && (
+              <div className="text-[10px] line-through text-muted-foreground leading-tight">{formatRub(order.total)}</div>
+            )}
+            <span className="font-semibold text-sm">{formatRub(actual ?? order.total)}</span>
+          </div>
+        )
+      })()}
     </button>
   )
 }
