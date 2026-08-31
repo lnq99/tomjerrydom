@@ -155,11 +155,13 @@ export type CreateProductInput = {
   categories?: { id: string }[]
   images?: { url: string }[]
   thumbnail?: string | null
+  options?: { title: string; values?: string[] }[]
   variants?: {
     title: string
     sku?: string
     manage_inventory?: boolean
     prices?: { currency_code: string; amount: number }[]
+    options?: Record<string, string>
   }[]
 }
 

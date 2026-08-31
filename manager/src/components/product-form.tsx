@@ -260,11 +260,14 @@ export function ProductForm({
       categories: form.categoryId ? [{ id: form.categoryId }] : undefined,
       images: form.images.length ? form.images : undefined,
       thumbnail: form.images[0]?.url ?? null,
+      options: activeVariants.length ? [{ title: "Вариант", values: activeVariants.map((v) => v.title.trim()) }] : undefined,
       variants: activeVariants.length
         ? activeVariants.map((v) => ({
             title: v.title.trim(),
             sku: v.sku.trim() || undefined,
             manage_inventory: true,
+            prices: [],
+            options: { "Вариант": v.title.trim() },
           }))
         : undefined,
     }
