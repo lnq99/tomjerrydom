@@ -71,23 +71,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const orderModule = req.scope.resolve(Modules.ORDER)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  const [order, { data: graph }] = await Promise.all([
-    orderModule.retrieveOrder(id, { relations: ["items"] }),
-    query.graph({
-      entity: "order",
-      fields: ["id", "payment_collections.id", "payment_collections.status"],
-      filters: { id },
-    }) as Promise<{ data: { id: string; payment_collections?: { id: string; status: string }[] }[] }>,
-  ])
-
-  const paymentCollections = graph?.[0]?.payment_collections ?? []
-  const paymentStatus = paymentCollections.some((pc) => pc.status === "captured")
-    ? "captured"
-    : paymentCollections.some((pc) => pc.status === "partially_captured")
-    ? "partially_captured"
-    : paymentCollections.length > 0
-    ? paymentCollections[0].status
-    : "not_paid"
+  const order = await orderModule.retrieveOrder(id, { relations: ["items"] })
+  const paymentStatus = (order as any).payment_status ?? "not_paid"
 
   // Fetch cost from product.metadata.cost (kopecks) for each variant
   const variantIds = ((order as any).items ?? []).map((i: any) => i.variant_id).filter(Boolean)
