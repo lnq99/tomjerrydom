@@ -76,17 +76,18 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     }) as Promise<{ data: { id: string; payment_status: string | null }[] }>,
   ])
 
-  // Fetch cost_price for each variant so the frontend can compute profit
+  // Fetch cost from product.metadata.cost (kopecks) for each variant
   const variantIds = ((order as any).items ?? []).map((i: any) => i.variant_id).filter(Boolean)
   const costMap: Record<string, number> = {}
   if (variantIds.length) {
     const { data: variants } = await (query.graph({
       entity: "product_variant",
-      fields: ["id", "cost_price"],
+      fields: ["id", "product.metadata"],
       filters: { id: variantIds },
-    }) as Promise<{ data: { id: string; cost_price?: number | null }[] }>)
+    }) as Promise<{ data: { id: string; product?: { metadata?: Record<string, unknown> | null } | null }[] }>)
     for (const v of variants ?? []) {
-      costMap[v.id] = Math.round((v.cost_price ?? 0) * 100) // rubles → kopecks
+      const cost = (v.product?.metadata?.cost as number) ?? 0
+      costMap[v.id] = Math.round(cost) // already in kopecks
     }
   }
 
@@ -104,7 +105,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         variant_id: item.variant_id ?? null,
         quantity: item.quantity,
         unit_price: (item.unit_price ?? 0) * 100,
-        cost_price: costMap[item.variant_id] ?? 0,
+        // Prefer snapshotted cost from item metadata; fall back to current product cost
+        cost_price: (item.metadata?.cost_price as number) ?? costMap[item.variant_id] ?? 0,
         thumbnail: item.thumbnail ?? null,
         metadata: item.metadata ?? {},
       })),

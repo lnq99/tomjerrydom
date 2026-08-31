@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft, AlertCircle, Check, Pencil, X, MoreHorizontal } from "lucide-react"
+import { ArrowLeft, AlertCircle, Check, Pencil, X, MoreHorizontal, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -197,9 +197,21 @@ export default function OrderDetailPage() {
         title: i.title,
         quantity: i.quantity,
         unitPrice: i.unit_price,
+        costPrice: i.cost_price,
       }))
       const total = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
-      const { order: newOrder } = await createPosOrder({ items, total })
+      const { order: newOrder } = await createPosOrder({ items, total, mode: "order" })
+      // Copy customer info to the new order
+      const meta = order.metadata ?? {}
+      if (meta.customer_name || meta.customer_phone || meta.customer_note) {
+        await updatePosOrder(newOrder.id, {
+          metadata: {
+            customer_name: meta.customer_name ?? undefined,
+            customer_phone: meta.customer_phone ?? undefined,
+            customer_note: meta.customer_note ?? undefined,
+          },
+        })
+      }
       router.push(`/orders/${newOrder.id}`)
     } catch (e: any) {
       toast.error(e?.message ?? "Lỗi khi nhân bản")
@@ -318,7 +330,22 @@ export default function OrderDetailPage() {
 
         {/* Items */}
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Sản phẩm</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sản phẩm</p>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setPs((prev) => prev
+                  ? { ...prev, picked: Object.fromEntries(Object.keys(prev.picked).map((k) => [k, 0])) }
+                  : prev
+                )}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Đặt lại
+              </button>
+            )}
+          </div>
           <div className="space-y-2">
             {order.items.map((item) => {
               const picked = ps.picked[item.id] ?? item.quantity
@@ -491,7 +518,7 @@ function ActionsMenu({ children }: { children: React.ReactNode }) {
         <MoreHorizontal className="h-4 w-4" />
       </Button>
       {open && (
-        <div className="absolute right-0 top-8 z-[200] min-w-[130px] rounded-md border bg-popover shadow-lg py-1" onClick={() => setOpen(false)}>
+        <div className="absolute right-0 top-8 z-[200] min-w-[130px] rounded-md border bg-background shadow-lg py-1" onClick={() => setOpen(false)}>
           {children}
         </div>
       )}
@@ -624,7 +651,7 @@ function CustomerSection({
           </div>
           <Input placeholder="Số điện thoại" value={draft.phone} onChange={(e) => handleDraftChange("phone", e.target.value)} className="h-8 text-sm" />
           {suggestions.length > 0 && (
-            <div className="rounded-md border bg-popover shadow-md overflow-hidden">
+            <div className="rounded-md border bg-background shadow-md overflow-hidden">
               {suggestions.map((c, i) => (
                 <button key={i} type="button" onClick={() => applySuggestion(c)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent transition-colors">

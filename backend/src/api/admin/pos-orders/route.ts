@@ -11,6 +11,7 @@ type PosItem = {
   variantTitle?: string
   quantity: number
   unitPrice: number
+  costPrice?: number
   thumbnail?: string | null
 }
 
@@ -91,18 +92,40 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const orderModule = req.scope.resolve(Modules.ORDER)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Resolve cost per item: use frontend-provided costPrice, fall back to product metadata
+  const variantIdsNeedingCost = items.filter((i) => i.variantId && i.costPrice === undefined).map((i) => i.variantId!)
+  const productCostMap: Record<string, number> = {}
+  if (variantIdsNeedingCost.length) {
+    const { data: variants } = await (query.graph({
+      entity: "product_variant",
+      fields: ["id", "product.metadata"],
+      filters: { id: variantIdsNeedingCost },
+    }) as Promise<{ data: { id: string; product?: { metadata?: Record<string, unknown> | null } | null }[] }>)
+    for (const v of variants ?? []) {
+      productCostMap[v.id] = Math.round((v.product?.metadata?.cost as number) ?? 0)
+    }
+  }
+
+  const resolvedItems = items.map((item) => ({
+    ...item,
+    resolvedCost: item.costPrice ?? (item.variantId ? (productCostMap[item.variantId] ?? 0) : 0),
+  }))
+
+  const totalCost = resolvedItems.reduce((s, i) => s + i.resolvedCost * i.quantity, 0)
 
   const order = await orderModule.createOrders({
     currency_code: "rub",
     status: mode === "sell" ? "completed" : "pending",
-    metadata: { source: "pos", tier_id: tierId ?? "retail", mode },
+    metadata: { source: "pos", tier_id: tierId ?? "retail", mode, total_cost: totalCost },
   })
 
   const totalRubles = Math.round(total / 100)
 
   await orderModule.createOrderLineItems(
     order.id,
-    items.map((item) => ({
+    resolvedItems.map((item) => ({
       title: item.variantTitle
         ? `${item.title} — ${item.variantTitle}`
         : item.title,
@@ -110,6 +133,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       quantity: item.quantity,
       unit_price: Math.round(item.unitPrice / 100), // frontend sends kopecks; Medusa stores as-is in rubles
       thumbnail: item.thumbnail ?? undefined,
+      metadata: { cost_price: item.resolvedCost }, // snapshot cost in kopecks
     }))
   )
 

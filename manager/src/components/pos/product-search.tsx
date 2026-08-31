@@ -101,17 +101,13 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
       productTitle: product.title,
       thumbnail: product.thumbnail,
       unitPrice: tierPrice(product.id),
+      costPrice: productCost(product.id),
       quantity: qty,
     })
   }
 
   function handleTap(product: AdminProduct) {
-    const variants = (product.variants ?? []).filter((v) => !v.metadata?.disabled)
-    if (variants.length <= 1) {
-      addVariant(product, variants[0] ?? { id: product.id, title: product.title, sku: null, prices: [] })
-    } else {
-      setPickerProduct(product)
-    }
+    setPickerProduct(product)
   }
 
   return (

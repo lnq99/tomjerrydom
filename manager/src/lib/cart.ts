@@ -5,6 +5,7 @@ export type LineItem = {
   productTitle: string
   thumbnail: string | null
   unitPrice: number
+  costPrice: number
   quantity: number
   manualPrice?: boolean
 }

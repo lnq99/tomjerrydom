@@ -9,6 +9,7 @@ import { subDays, format, startOfDay, parseISO } from "date-fns"
 import { vi } from "date-fns/locale"
 import { listOrders, type AdminOrder } from "@/lib/api"
 import { formatRub } from "@/lib/utils"
+import { useSensitive } from "@/lib/sensitive-context"
 
 const RANGES = [
   { label: "7 ng", days: 7 },
@@ -16,8 +17,17 @@ const RANGES = [
   { label: "90 ng", days: 90 },
 ]
 
+function orderCost(o: AdminOrder): number {
+  return (o.metadata?.total_cost as number) ?? 0
+}
+
+function isCountable(o: AdminOrder): boolean {
+  return o.status === "completed" && o.payment_status === "captured"
+}
+
 export default function AnalyticsPage() {
   const [days, setDays] = useState(30)
+  const { show: showSensitive } = useSensitive()
 
   const since = useMemo(
     () => subDays(startOfDay(new Date()), days - 1).toISOString(),
@@ -33,24 +43,38 @@ export default function AnalyticsPage() {
   const orders = data?.orders ?? []
 
   const stats = useMemo(() => {
-    const completed = orders.filter((o) => o.status !== "cancelled" && o.status !== "draft")
-    const revenue = completed.reduce((s, o) => s + o.total, 0)
-    const avg = completed.length ? Math.round(revenue / completed.length) : 0
-    return { count: completed.length, revenue, avg }
+    const countable = orders.filter(isCountable)
+    const revenue = countable.reduce((s, o) => s + o.total, 0)
+    // Only compute profit for orders that have a cost snapshot
+    const withCost = countable.filter((o) => orderCost(o) > 0)
+    const costTotal = withCost.reduce((s, o) => s + orderCost(o), 0)
+    const revenueWithCost = withCost.reduce((s, o) => s + o.total, 0)
+    const profit = revenueWithCost - costTotal
+    const avg = countable.length ? Math.round(revenue / countable.length) : 0
+    return { count: countable.length, revenue, profit, avg, hasCostData: withCost.length > 0 }
   }, [orders])
 
   const chartData = useMemo(() => {
-    const map: Record<string, number> = {}
+    const map: Record<string, { baseCost: number; profit: number }> = {}
     for (let i = days - 1; i >= 0; i--) {
       const d = format(subDays(new Date(), i), "dd.MM")
-      map[d] = 0
+      map[d] = { baseCost: 0, profit: 0 }
     }
     for (const o of orders) {
-      if (o.status === "cancelled" || o.status === "draft") continue
+      if (!isCountable(o)) continue
       const d = format(parseISO(o.created_at), "dd.MM")
-      if (d in map) map[d] = (map[d] ?? 0) + o.total
+      if (!(d in map)) continue
+      const cost = orderCost(o)
+      if (cost > 0) {
+        // Cost data known: split into cost (bottom) + profit (green top)
+        map[d].baseCost += cost
+        map[d].profit += Math.max(0, o.total - cost)
+      } else {
+        // No cost data: show full revenue as base (primary), no profit shown
+        map[d].baseCost += o.total
+      }
     }
-    return Object.entries(map).map(([date, revenue]) => ({ date, revenue }))
+    return Object.entries(map).map(([date, { baseCost, profit }]) => ({ date, baseCost, profit }))
   }, [orders, days])
 
   return (
@@ -78,10 +102,17 @@ export default function AnalyticsPage() {
 
       <div className="p-4 space-y-6">
         {/* KPI cards */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Đơn hàng" value={String(stats.count)} loading={isLoading} />
           <StatCard label="Doanh thu" value={formatRub(stats.revenue)} loading={isLoading} />
           <StatCard label="TB/đơn" value={formatRub(stats.avg)} loading={isLoading} />
+          {!stats.hasCostData ? (
+            <StatCard label="Lợi nhuận" value="—" loading={isLoading} green />
+          ) : showSensitive ? (
+            <StatCard label="Lợi nhuận" value={formatRub(stats.profit)} loading={isLoading} green />
+          ) : (
+            <StatCard label="Lợi nhuận" value="••••••" loading={isLoading} green />
+          )}
         </div>
 
         {/* Chart */}
@@ -107,7 +138,10 @@ export default function AnalyticsPage() {
                   axisLine={false}
                 />
                 <Tooltip
-                  formatter={(v: number) => [formatRub(v), "Doanh thu"]}
+                  formatter={(v: number, name: string) => [
+                    formatRub(v),
+                    name === "profit" ? "Lợi nhuận" : "Doanh thu",
+                  ]}
                   contentStyle={{
                     fontSize: 12,
                     borderRadius: 8,
@@ -115,7 +149,8 @@ export default function AnalyticsPage() {
                     backgroundColor: "hsl(var(--background))",
                   }}
                 />
-                <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="baseCost" stackId="a" fill="hsl(var(--primary))" radius={[0, 0, 4, 4]} />
+                <Bar dataKey="profit" stackId="a" fill="#22c55e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -130,7 +165,7 @@ export default function AnalyticsPage() {
             <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">Đang tải...</div>
           ) : (
             <div className="divide-y">
-              {orders.slice(0, 10).map((o) => <RecentOrderRow key={o.id} order={o} />)}
+              {orders.slice(0, 10).map((o) => <RecentOrderRow key={o.id} order={o} showSensitive={showSensitive} />)}
               {orders.length === 0 && (
                 <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">
                   Không có đơn hàng trong kỳ
@@ -144,33 +179,43 @@ export default function AnalyticsPage() {
   )
 }
 
-function StatCard({ label, value, loading }: { label: string; value: string; loading: boolean }) {
+function StatCard({ label, value, loading, green }: { label: string; value: string; loading: boolean; green?: boolean }) {
   return (
     <div className="rounded-lg border bg-card px-4 py-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-bold mt-1 truncate">{loading ? "…" : value}</p>
+      <p className={["text-lg font-bold mt-1 truncate", green ? "text-green-600" : ""].join(" ")}>
+        {loading ? "…" : value}
+      </p>
     </div>
   )
 }
 
-function RecentOrderRow({ order }: { order: AdminOrder }) {
+function RecentOrderRow({ order, showSensitive }: { order: AdminOrder; showSensitive: boolean }) {
   const date = format(parseISO(order.created_at), "d MMM, HH:mm", { locale: vi })
   const customer =
+    String(order.metadata?.customer_name || "") ||
     [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
     order.customer?.email ||
     "Khách"
-  const isCancelled = order.status === "cancelled"
+  const isCancelled = !isCountable(order)
+  const cost = orderCost(order)
+  const profit = order.total - cost
 
   return (
     <div className="flex items-center justify-between px-4 py-2.5">
-      <div>
+      <div className="min-w-0 flex-1">
         <span className="text-sm font-medium">#{order.display_id}</span>
-        <span className="text-xs text-muted-foreground ml-2">{customer}</span>
+        <span className="text-xs text-muted-foreground ml-2 truncate">{customer}</span>
       </div>
-      <div className="text-right">
+      <div className="text-right shrink-0 ml-2">
         <p className={`text-sm font-medium ${isCancelled ? "line-through text-muted-foreground" : ""}`}>
           {formatRub(order.total)}
         </p>
+        {!isCancelled && cost > 0 && (
+          <p className={`text-xs font-medium ${showSensitive ? "text-green-600" : "text-muted-foreground"}`}>
+            {showSensitive ? `+${formatRub(profit)}` : "••••"}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">{date}</p>
       </div>
     </div>

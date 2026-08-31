@@ -273,6 +273,7 @@ export type PosOrderItem = {
   variantTitle?: string
   quantity: number
   unitPrice: number
+  costPrice?: number
   thumbnail?: string | null
 }
 
