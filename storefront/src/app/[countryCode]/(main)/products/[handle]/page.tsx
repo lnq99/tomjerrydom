@@ -90,11 +90,11 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   }
 
   return {
-    title: `${product.title} | Medusa Store`,
-    description: `${product.title}`,
+    title: `${product.title} | Tom&Jerry Дом`,
+    description: product.description ?? product.title,
     openGraph: {
-      title: `${product.title} | Medusa Store`,
-      description: `${product.title}`,
+      title: `${product.title} | Tom&Jerry Дом`,
+      description: product.description ?? product.title,
       images: product.thumbnail ? [product.thumbnail] : [],
     },
   }
@@ -148,12 +148,38 @@ export default async function ProductPage(props: Props) {
 
   const images = getImagesForVariant(pricedProduct, selectedVariantId)
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: pricedProduct.title,
+    description: pricedProduct.description ?? pricedProduct.title,
+    image: (pricedProduct.images ?? []).map((img) => img.url).filter(Boolean),
+    offers: (pricedProduct.variants ?? [])
+      .filter((v) => {
+        const amount = (v as any).calculated_price?.calculated_amount
+        return typeof amount === "number" && amount > 0
+      })
+      .map((v) => ({
+        "@type": "Offer",
+        price: (v as any).calculated_price?.calculated_amount,
+        priceCurrency: region.currency_code?.toUpperCase() ?? "RUB",
+        availability: "https://schema.org/InStock",
+        itemCondition: "https://schema.org/NewCondition",
+      })),
+  }
+
   return (
-    <ProductTemplate
-      product={pricedProduct}
-      region={region}
-      countryCode={params.countryCode}
-      images={images ?? []}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ProductTemplate
+        product={pricedProduct}
+        region={region}
+        countryCode={params.countryCode}
+        images={images ?? []}
+      />
+    </>
   )
 }

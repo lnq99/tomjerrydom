@@ -57,6 +57,7 @@ export default async function ProductPreview({
               images={product.images}
               size="square"
               className="!w-20 !aspect-square"
+              alt={product.title ?? ""}
             />
           </div>
           <div className="flex flex-1 items-start justify-between gap-x-4 min-w-0">
@@ -105,6 +106,7 @@ export default async function ProductPreview({
           images={product.images}
           size="square"
           isFeatured={isFeatured}
+          alt={product.title ?? ""}
         />
         <div className="mt-3">
           {brand && (
