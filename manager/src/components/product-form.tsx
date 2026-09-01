@@ -16,7 +16,7 @@ import {
   saveProductCosts,
   type CreateProductInput,
 } from "@/lib/api"
-import { rubles, toKopecks } from "@/lib/utils"
+import { displayRub, parseRubles } from "@/lib/utils"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ type FormState = {
   title: string
   status: "published" | "draft" | "rejected"
   categoryId: string
-  cost: string           // cost price in rubles (stored as kopecks in metadata)
+  cost: string           // cost price in rubles (string, for input field)
   images: ImageItem[]
   variants: VariantRow[]
 }
@@ -85,7 +85,7 @@ function initForm(product?: AdminProduct): FormState {
     title: product?.title ?? "",
     status: (product?.status ?? "draft") as FormState["status"],
     categoryId: product?.categories?.[0]?.id ?? "",
-    cost: rubles(cost),
+    cost: displayRub(cost),
     images: product?.images?.map((img) => ({ url: img.url })) ?? [],
     variants: product?.variants?.map(variantToRow) ??
       [{ _key: makeKey(), title: "", sku: "", stock: "", initialStock: "" }],
@@ -286,7 +286,7 @@ export function ProductForm({
     }
     const { product: created } = await createProduct(input)
     if (form.cost) {
-      await saveProductCosts([{ product_id: created.id, cost: toKopecks(form.cost) }])
+      await saveProductCosts([{ product_id: created.id, cost: parseRubles(form.cost) }])
     }
     qc.invalidateQueries({ queryKey: ["products"] })
     toast.success("Đã tạo sản phẩm")
@@ -305,7 +305,7 @@ export function ProductForm({
     })
 
     if (form.cost) {
-      await saveProductCosts([{ product_id: product.id, cost: toKopecks(form.cost) }])
+      await saveProductCosts([{ product_id: product.id, cost: parseRubles(form.cost) }])
     }
 
     const toDelete = form.variants.filter((v) => v.deleted && v.id)

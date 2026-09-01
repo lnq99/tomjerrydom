@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Medusa v2 e-commerce platform for the Russian market. Monorepo containing backend, admin extensions (with embedded POS), storefront, Telegram bot, and infra config.
+Medusa v2 e-commerce platform for the Russian market. Monorepo containing backend, standalone manager app (POS + product/order management), storefront, Telegram bot, and infra config.
 
 ## Decided Architecture (do not re-litigate these)
 
@@ -23,14 +23,37 @@ Medusa v2 e-commerce platform for the Russian market. Monorepo containing backen
 | Telegram channel | Cloudflare Workers |
 | Explicitly excluded | MoySklad, Yandex Cloud, 152-ФЗ localization |
 
-**Three surfaces:** customer storefront · admin back-office · POS module
+**Three surfaces:** customer storefront · admin back-office (Medusa default) · manager app (POS + ops)
 
-## POS Architecture (confirmed, do not ask again)
+## Manager App Architecture (confirmed, do not ask again)
 
-POS is a **Medusa v2 admin UI extension** (custom route/widget within the admin app), not a standalone app. It shares admin auth, API client, and deployment.
+Manager is a **standalone Next.js app** (`manager/`), not a Medusa admin extension. It has its own JWT auth (cookie `manager_token`), its own API client (`manager/src/lib/api.ts`), and runs on port 3100.
 
-- POS-specific code lives in `admin/src/pos/` — separate from general admin customizations
-- POS **business logic** (cart state, pricing, payment orchestration) must be **decoupled from POS UI components** so it can later be called from a Telegram bot webhook handler without depending on admin-UI context
+Intended user: **non-technical Vietnamese-speaking staff** (shop operators, not developers).
+
+- Manager covers: POS, product catalog management, order fulfillment, pricing config, storefront media, analytics
+- POS **business logic** (cart state, pricing, payment orchestration) is decoupled from UI in `manager/src/lib/` so it can later be called from a Telegram bot webhook handler without depending on UI context
+- The `admin/` directory is reserved for future Medusa admin extensions (backend-developer-facing tools), separate from the manager surface
+
+## Language & i18n (confirmed, do not ask again)
+
+| Surface | Language |
+|---|---|
+| Manager UI | Vietnamese (primary staff language) |
+| Receipts & QR payment screen | Russian (customer-facing printouts) |
+| Storefront | Russian |
+| Admin back-office | English (Medusa default) |
+
+Russian i18n for the manager UI is planned. Foundation exists in `manager/src/lib/i18n.ts` and `manager/src/lib/lang-context.tsx` — strings are defined, but components still use Vietnamese hardcoded. Wire up gradually as needed.
+
+## Price Units (confirmed, do not re-litigate)
+
+**All prices are in whole rubles (₽) everywhere** — backend API responses, frontend state, cart math, database.
+
+- Do NOT use kopecks (smallest unit) anywhere in this project
+- `formatRub(amount)` formats whole rubles directly — no ÷100
+- Round fractional values with `Math.round()` at input/API boundaries
+- Exception: if calling a Medusa built-in API that internally requires smallest-unit (e.g., Medusa's own price list APIs), convert at that one call site only: `rubles * 100`
 
 ## Open Decisions (still pending user input)
 
@@ -50,18 +73,21 @@ POS is a **Medusa v2 admin UI extension** (custom route/widget within the admin 
 3. R2 integration
 4. YooKassa integration
 5. Storefront
-6. Admin customization
-7. POS (admin extension)
-8. Telegram bot
-9. Backups + monitoring
+6. Manager app (POS, products, orders, pricing)
+7. Telegram bot
+8. Backups + monitoring
 
 ## Monorepo Structure
 
 ```
 /
 ├── backend/          # Medusa v2 — custom modules, API routes, workflows, subscribers
-├── admin/            # Medusa admin UI extensions
-│   └── src/pos/      # POS-specific components and business logic (kept separate)
+├── admin/            # Medusa admin UI extensions (reserved for future backend-dev tools)
+├── manager/          # Standalone Next.js manager app — POS, catalog, orders, pricing
+│   └── src/
+│       ├── app/      # Next.js App Router pages
+│       ├── components/pos/  # POS-specific UI components
+│       └── lib/      # Shared logic: api.ts, cart.ts, i18n.ts, lang-context.tsx, etc.
 ├── storefront/       # Next.js storefront — OpenNext adapter for Cloudflare Pages
 ├── telegram-bot/     # Cloudflare Worker for Telegram channel
 ├── infra/            # Docker Compose, nginx/Caddy config, Oracle VM provisioning notes
@@ -74,4 +100,4 @@ POS is a **Medusa v2 admin UI extension** (custom route/widget within the admin 
 
 ## Current State
 
-Skeleton scaffolded — directories and placeholder READMEs exist, no application code yet. See `PLANNING.md` for build milestones.
+Manager app is functional with POS, orders, products, pricing config, and media management. Storefront skeleton exists. Telegram bot and infra pending.

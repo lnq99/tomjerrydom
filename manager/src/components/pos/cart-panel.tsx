@@ -8,18 +8,12 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { formatRub, toKopecks, rubles, cn } from "@/lib/utils"
+import { formatRub, displayRub, parseRubles, shortTierLabel, cn } from "@/lib/utils"
 import { getBankingDetails, type BankingDetails } from "@/lib/banking-details"
 import { createPosOrder, cancelPosOrder, type PosOrder } from "@/lib/api"
 import type { Cart, LineItem } from "@/lib/cart"
 
 type Tier = { id: string; label: string; min_order_amount: number }
-
-function shortTierLabel(tier: Tier): string {
-  if (tier.min_order_amount === 0) return tier.label
-  const r = tier.min_order_amount / 100
-  return `Sỉ ${r >= 1000 ? `${Math.round(r / 1000)}k` : r}`
-}
 
 type CartTabInfo = { id: string; label: string; phone?: string; hasItems: boolean; isActive: boolean }
 
@@ -505,10 +499,6 @@ function ReceiptDialog({
     win.print()
   }
 
-  function fmtRu(kopecks: number) {
-    return (kopecks / 100).toLocaleString("ru-RU", { minimumFractionDigits: 0 }) + " ₽"
-  }
-
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-sm">
@@ -543,8 +533,8 @@ function ReceiptDialog({
               <div key={i} className="space-y-0.5">
                 <p className="truncate">{name}</p>
                 <div className="flex justify-between pl-2 text-[11px]">
-                  <span>{item.quantity} × {fmtRu(item.unitPrice)}</span>
-                  <span>{fmtRu(lineTotal)}</span>
+                  <span>{item.quantity} × {formatRub(item.unitPrice)}</span>
+                  <span>{formatRub(lineTotal)}</span>
                 </div>
               </div>
             )
@@ -553,7 +543,7 @@ function ReceiptDialog({
           <p className="text-center">─────────────────────</p>
           <div className="flex justify-between font-bold">
             <span>ИТОГО:</span>
-            <span>{fmtRu(total)}</span>
+            <span>{formatRub(total)}</span>
           </div>
           <p className="text-center">─────────────────────</p>
           <p className="text-center text-[11px]">Оплата: наличными</p>
@@ -671,12 +661,12 @@ function CartItem({
   const [priceInput, setPriceInput] = useState("")
 
   function startEdit() {
-    setPriceInput(rubles(item.unitPrice))
+    setPriceInput(displayRub(item.unitPrice))
     setEditingPrice(true)
   }
 
   function commitPrice() {
-    onSetPrice(item.variantId, toKopecks(priceInput))
+    onSetPrice(item.variantId, parseRubles(priceInput))
     setEditingPrice(false)
   }
 
@@ -689,12 +679,12 @@ function CartItem({
       item.manualPrice && "border-l-2 border-amber-400"
     )}>
       {/* Thumbnail — square with padding so it doesn't bleed to the edges */}
-      <div className="p-2 shrink-0 flex items-center self-stretch">
+      <div className="p-1 shrink-0 flex items-center self-stretch">
         {item.thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.thumbnail} alt="" className="h-12 w-12 rounded object-cover" />
+          <img src={item.thumbnail} alt="" className="h-16 w-16 rounded object-cover" />
         ) : (
-          <div className="h-12 w-12 rounded bg-muted flex items-center justify-center text-muted-foreground text-xs">—</div>
+          <div className="h-16 w-16 rounded bg-muted flex items-center justify-center text-muted-foreground text-xs">—</div>
         )}
       </div>
 

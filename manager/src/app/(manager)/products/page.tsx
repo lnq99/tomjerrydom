@@ -12,7 +12,7 @@ import {
   listProducts, updateProduct, saveProductCosts, getProduct, createProduct, deleteProduct,
   type AdminProduct,
 } from "@/lib/api"
-import { formatRub, rubles, toKopecks, cn } from "@/lib/utils"
+import { formatRub, displayRub, parseRubles, cn } from "@/lib/utils"
 
 const STATUS_LABEL: Record<string, string> = {
   published: "Đã đăng",
@@ -307,16 +307,16 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
   const cost = (product.metadata?.cost as number) ?? 0
 
   const [editingCost, setEditingCost] = useState(false)
-  const [costVal, setCostVal] = useState(() => rubles(cost))
+  const [costVal, setCostVal] = useState(() => displayRub(cost))
   const [savingCost, setSavingCost] = useState(false)
 
   useEffect(() => {
-    if (!editingCost) setCostVal(rubles(cost))
+    if (!editingCost) setCostVal(displayRub(cost))
   }, [cost, editingCost])
 
   async function saveCost() {
     setEditingCost(false)
-    const newKopecks = toKopecks(costVal)
+    const newKopecks = parseRubles(costVal)
     if (newKopecks === cost) return
     setSavingCost(true)
     try {
@@ -324,7 +324,7 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
       qc.invalidateQueries({ queryKey: ["products"] })
     } catch {
       toast.error("Không thể cập nhật giá vốn")
-      setCostVal(rubles(cost))
+      setCostVal(displayRub(cost))
     } finally {
       setSavingCost(false)
     }
@@ -361,7 +361,7 @@ function ProductTableRow({ product }: { product: AdminProduct }) {
             onBlur={saveCost}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur()
-              if (e.key === "Escape") { setEditingCost(false); setCostVal(rubles(cost)) }
+              if (e.key === "Escape") { setEditingCost(false); setCostVal(displayRub(cost)) }
             }}
             className="h-7 w-24 rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           />

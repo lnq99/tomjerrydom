@@ -97,7 +97,7 @@ export const listProducts = async ({
  * It will then return the paginated products based on the page and limit parameters.
  */
 export const listProductsWithSort = async ({
-  page = 0,
+  page = 1,
   queryParams,
   sortBy = "created_at",
   countryCode,
@@ -118,14 +118,17 @@ export const listProductsWithSort = async ({
     new Set((optionValueIds || []).filter(Boolean))
   )
 
+  // Fetch the full catalogue in one shot so client-side sort + slice is
+  // accurate across all pages. 500 is a safe upper bound for a small store;
+  // revisit when catalogue grows beyond that.
   const {
     response: { products },
   } = await listProducts({
-    pageParam: 0,
+    pageParam: 1,
     queryParams: {
       ...queryParams,
       ...(optionFilters.length ? { option_value_id: optionFilters } : {}),
-      limit: 100,
+      limit: 500,
     },
     countryCode,
   })

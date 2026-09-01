@@ -388,21 +388,7 @@ export async function listOrders(params?: {
   qs.set("fields", "id,display_id,status,payment_status,total,subtotal,created_at,metadata,*customer,*items")
   qs.set("order", "-created_at")
   if (params?.created_at_gte) qs.set("created_at[gte]", params.created_at_gte)
-  const raw = await apiFetch<{ orders: AdminOrder[]; count: number }>(`/admin/orders?${qs}`)
-  // Medusa stores prices as-is (rubles); multiply by 100 to convert to kopecks for our formatRub() calls
-  return {
-    count: raw.count,
-    orders: raw.orders.map((o) => ({
-      ...o,
-      total: (o.total ?? 0) * 100,
-      subtotal: (o.subtotal ?? 0) * 100,
-      items: (o.items ?? []).map((i) => ({
-        ...i,
-        unit_price: (i.unit_price ?? 0) * 100,
-        total: (i.total ?? 0) * 100,
-      })),
-    })),
-  }
+  return apiFetch<{ orders: AdminOrder[]; count: number }>(`/admin/orders?${qs}`)
 }
 
 // ── Pricing config ───────────────────────────────────────────────────────────

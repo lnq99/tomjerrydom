@@ -4,7 +4,7 @@ import { useReducer, useCallback, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { ShoppingCart, Search } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, shortTierLabel } from "@/lib/utils"
 import { ProductSearch } from "@/components/pos/product-search"
 import { CartPanel } from "@/components/pos/cart-panel"
 import { getPricingConfig } from "@/lib/api"
@@ -136,14 +136,6 @@ function saveState(state: TabsState) {
   } catch {}
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function shortTierLabel(tier: { id: string; label: string; min_order_amount: number }): string {
-  if (tier.min_order_amount === 0) return tier.label
-  const r = tier.min_order_amount / 100
-  return `Sỉ ${r >= 1000 ? `${Math.round(r / 1000)}k` : r}`
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type MobileTab = "products" | "cart"
@@ -166,6 +158,7 @@ export default function PosPage() {
   const tiers = pricingData?.tiers ?? [{ id: "retail", label: "Bán lẻ", min_order_amount: 0, sort_order: 0 }]
 
   const activeTab = state.tabs.find((t) => t.id === state.activeId) ?? state.tabs[0]
+
   const cart = activeTab.cart
   const tierId = activeTab.tierId
 
@@ -188,6 +181,22 @@ export default function PosPage() {
     }
     dispatch({ type: "RETIER", tabId: state.activeId, tierId: newTierId, prices: priceMap })
   }
+
+  // Auto-correct stale tierId from localStorage when real tiers load and don't match.
+  useEffect(() => {
+    if (!pricingData) return
+    const firstId = pricingData.tiers[0]?.id
+    if (!firstId) return
+    const tierIds = new Set(pricingData.tiers.map((t) => t.id))
+    const priceMap = new Map<string, number>()
+    for (const prod of pricingData.products) priceMap.set(prod.id, prod.calculated_prices[firstId] ?? 0)
+    for (const tab of state.tabs) {
+      if (!tierIds.has(tab.tierId)) {
+        dispatch({ type: "RETIER", tabId: tab.id, tierId: firstId, prices: priceMap })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricingData])
 
   const cartTabs = state.tabs.map((t) => ({
     id: t.id,

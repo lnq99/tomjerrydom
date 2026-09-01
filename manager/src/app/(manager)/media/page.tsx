@@ -439,7 +439,7 @@ function MediaSection({
               onMoveDown={() => handleMove(i, 1)}
             />
           ))}
-          <AddItemForm section={section} onAdd={addMutation.mutateAsync} />
+          <AddItemForm section={section} onAdd={(data) => addMutation.mutateAsync(data).then(() => {})} />
         </div>
       )}
     </section>

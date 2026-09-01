@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { QtyControl } from "@/components/pos/qty-control"
 import { getPosOrder, updatePosOrder, markOrderAsPaid, cancelOrder, archiveOrder, createPosOrder, listCustomers, type OrderDetail, type OrderDetailItem, type CustomerProfile } from "@/lib/api"
-import { formatRub, rubles, toKopecks, cn } from "@/lib/utils"
+import { formatRub, displayRub, parseRubles, cn } from "@/lib/utils"
 import { useSensitive, maskPhone } from "@/lib/sensitive-context"
 import { format } from "date-fns"
 
@@ -72,6 +72,7 @@ export default function OrderDetailPage() {
   const [addItemOpen, setAddItemOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmPay, setConfirmPay] = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
   const { show: showSensitive } = useSensitive()
 
   useEffect(() => {
@@ -183,7 +184,6 @@ export default function OrderDetailPage() {
   }
 
   async function handleCancel() {
-    if (!confirm("Hủy đơn hàng này?")) return
     setSaving(true)
     try {
       await cancelOrder(id)
@@ -320,7 +320,7 @@ export default function OrderDetailPage() {
                 <ActionsMenuItem onClick={handleClone} disabled={saving}>Nhân bản</ActionsMenuItem>
                 {isCompleted && <ActionsMenuItem onClick={handleArchive} disabled={saving}>Lưu trữ</ActionsMenuItem>}
                 {isPending && (
-                  <ActionsMenuItem onClick={handleCancel} disabled={saving} destructive>Hủy đơn</ActionsMenuItem>
+                  <ActionsMenuItem onClick={() => setConfirmCancel(true)} disabled={saving} destructive>Hủy đơn</ActionsMenuItem>
                 )}
               </ActionsMenu>
             </div>
@@ -478,6 +478,31 @@ export default function OrderDetailPage() {
         }}
       />
 
+      <Dialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hủy đơn hàng #{order.display_id}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">Thao tác này không thể hoàn tác.</p>
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={async () => {
+                setConfirmCancel(false)
+                await handleCancel()
+              }}
+              disabled={saving}
+            >
+              Xác nhận hủy
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmCancel(false)}>
+              Quay lại
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={confirmPay} onOpenChange={setConfirmPay}>
         <DialogContent>
           <DialogHeader>
@@ -623,15 +648,13 @@ function CustomerSection({
   async function save() {
     setSaving(true)
     try {
-      if (completed) {
-        await updatePosOrder(orderId, {
-          metadata: {
-            customer_name: draft.name || undefined,
-            customer_phone: draft.phone || undefined,
-            customer_note: draft.note || undefined,
-          },
-        })
-      }
+      await updatePosOrder(orderId, {
+        metadata: {
+          customer_name: draft.name || undefined,
+          customer_phone: draft.phone || undefined,
+          customer_note: draft.note || undefined,
+        },
+      })
       setPs((prev) =>
         prev ? { ...prev, customerName: draft.name, customerPhone: draft.phone, customerNote: draft.note } : prev
       )
@@ -872,10 +895,10 @@ function ReviewView({
                 <div className="flex items-center gap-1 ml-auto">
                   <input
                     type="number"
-                    value={rubles(price)}
+                    value={displayRub(price)}
                     min={0}
                     step={1}
-                    onChange={(e) => onSetPrice(item.id, toKopecks(e.target.value))}
+                    onChange={(e) => onSetPrice(item.id, parseRubles(e.target.value))}
                     className="w-24 text-sm border rounded h-7 px-2 text-right focus:outline-none focus:ring-1 focus:ring-primary bg-background"
                   />
                   <span className="text-xs text-muted-foreground">₽</span>
@@ -902,10 +925,10 @@ function ReviewView({
               <div className="flex items-center gap-1 ml-auto">
                 <input
                   type="number"
-                  value={rubles(g.unit_price)}
+                  value={displayRub(g.unit_price)}
                   min={0}
                   step={1}
-                  onChange={(e) => onSetExtraPrice(g.key, toKopecks(e.target.value))}
+                  onChange={(e) => onSetExtraPrice(g.key, parseRubles(e.target.value))}
                   className="w-24 text-sm border rounded h-7 px-2 text-right focus:outline-none focus:ring-1 focus:ring-primary bg-background"
                 />
                 <span className="text-xs text-muted-foreground">₽</span>
@@ -951,7 +974,7 @@ function AddItemDialog({
 
   function handleAdd() {
     if (!title.trim()) return
-    onAdd({ title: title.trim(), quantity, unit_price: toKopecks(priceRub) })
+    onAdd({ title: title.trim(), quantity, unit_price: parseRubles(priceRub) })
     setTitle("")
     setQuantity(1)
     setPriceRub("")

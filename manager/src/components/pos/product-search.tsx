@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { listProducts, getVariantStock, type AdminProduct, type AdminVariant, type PricingConfig } from "@/lib/api"
-import { formatRub, cn } from "@/lib/utils"
+import { formatRub, shortTierLabel, cn } from "@/lib/utils"
 import { useSensitive } from "@/lib/sensitive-context"
 import type { LineItem } from "@/lib/cart"
 
@@ -27,13 +27,6 @@ type Props = {
   tiers: Tier[]
   pricingData: PricingConfig | null
   onAddItem: (item: LineItem) => void
-}
-
-function shortLabel(tier: Tier): string {
-  if (tier.min_order_amount === 0) return tier.label
-  const rubles = tier.min_order_amount / 100
-  const k = rubles >= 1000 ? `${Math.round(rubles / 1000)}k` : String(rubles)
-  return `Sỉ ${k}`
 }
 
 export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) {
@@ -172,7 +165,7 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
                   <div className="flex flex-wrap gap-x-2 mt-0.5">
                     {showSensitive && cost > 0 && <span className="text-[10px] text-muted-foreground">vốn: {formatRub(cost)}</span>}
                     {otherTiers.map((t) => calcPrices[t.id] ? (
-                      <span key={t.id} className="text-[10px] text-muted-foreground">{shortLabel(t)}: {formatRub(calcPrices[t.id])}</span>
+                      <span key={t.id} className="text-[10px] text-muted-foreground">{shortTierLabel(t)}: {formatRub(calcPrices[t.id])}</span>
                     ) : null)}
                   </div>
                 </div>
@@ -296,7 +289,7 @@ function ProductCard({ product, tiers, tierId, tierPrice, cost, showCost, allPri
           <div className="mt-1 flex flex-col gap-0.5 border-t pt-1">
             {otherTiers.map((t) => (
               <div key={t.id} className="flex justify-between items-center">
-                <span className="text-[10px] text-muted-foreground truncate">{shortLabel(t)}</span>
+                <span className="text-[10px] text-muted-foreground truncate">{shortTierLabel(t)}</span>
                 <span className="text-[10px] text-muted-foreground ml-1 shrink-0">{allPrices[t.id] ? formatRub(allPrices[t.id]) : "—"}</span>
               </div>
             ))}
@@ -349,7 +342,7 @@ function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onC
                   const p = allPrices[t.id]
                   return p ? (
                     <span key={t.id} className={cn("text-xs", t.id === tierId ? "font-bold text-primary" : "text-muted-foreground")}>
-                      {shortLabel(t)}: {formatRub(p)}
+                      {shortTierLabel(t)}: {formatRub(p)}
                     </span>
                   ) : null
                 })}

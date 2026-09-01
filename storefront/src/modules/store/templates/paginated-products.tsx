@@ -129,7 +129,9 @@ export default async function PaginatedProducts({
     ? pricedProducts.filter((p) => matchesSearch(p, searchQuery))
     : pricedProducts
 
-  const totalPages = searchQuery ? 1 : Math.ceil(count / PRODUCT_LIMIT)
+  // Use the post-tier-filter count so pagination reflects what's actually visible.
+  // count (from Medusa) doesn't account for tier-price filtering that hides products.
+  const totalPages = Math.ceil(pricedProducts.length / PRODUCT_LIMIT)
 
   if (filtered.length === 0) {
     return (

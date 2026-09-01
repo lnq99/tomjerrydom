@@ -5,60 +5,47 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
 const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "dk"
 
-const regionMapCache = {
-  regionMap: new Map<string, HttpTypes.StoreRegion>(),
-  regionMapUpdated: Date.now(),
-}
-
+// Fetch regions from Medusa. We can't use the JS client here because middleware
+// runs on the Edge runtime (no Node.js). Caching is handled by fetch's
+// force-cache + revalidate — NOT by a module-level Map, which would be
+// re-initialised on every Cloudflare Worker isolate.
 async function getRegionMap(cacheId: string) {
-  const { regionMap, regionMapUpdated } = regionMapCache
-
   if (!BACKEND_URL) {
     throw new Error(
       "Middleware.ts: Error fetching regions. Did you set up regions in your Medusa Admin and define a NEXT_PUBLIC_MEDUSA_BACKEND_URL environment variable."
     )
   }
 
-  if (
-    !regionMap.keys().next().value ||
-    regionMapUpdated < Date.now() - 3600 * 1000
-  ) {
-    // Fetch regions from Medusa. We can't use the JS client here because middleware is running on Edge and the client needs a Node environment.
-    const response = await fetch(`${BACKEND_URL}/store/regions`, {
-      method: "GET",
-      headers: {
-        "x-publishable-api-key": PUBLISHABLE_API_KEY!,
-      },
-      next: {
-        revalidate: 3600,
-        tags: [`regions-${cacheId}`],
-      },
-      cache: "force-cache",
-    })
+  const response = await fetch(`${BACKEND_URL}/store/regions`, {
+    method: "GET",
+    headers: {
+      "x-publishable-api-key": PUBLISHABLE_API_KEY!,
+    },
+    next: {
+      revalidate: 3600,
+      tags: [`regions-${cacheId}`],
+    },
+    cache: "force-cache",
+  })
 
-    if (!response.ok) {
-      throw new Error(`Backend returned ${response.status}`)
-    }
-
-    const json = await response.json()
-
-    const { regions } = json
-
-    if (!regions?.length) {
-      return new Map<string, HttpTypes.StoreRegion>()
-    }
-
-    // Create a map of country codes to regions.
-    regions.forEach((region: HttpTypes.StoreRegion) => {
-      region.countries?.forEach((c) => {
-        regionMapCache.regionMap.set(c.iso_2 ?? "", region)
-      })
-    })
-
-    regionMapCache.regionMapUpdated = Date.now()
+  if (!response.ok) {
+    throw new Error(`Backend returned ${response.status}`)
   }
 
-  return regionMapCache.regionMap
+  const { regions } = await response.json()
+
+  if (!regions?.length) {
+    return new Map<string, HttpTypes.StoreRegion>()
+  }
+
+  const regionMap = new Map<string, HttpTypes.StoreRegion>()
+  regions.forEach((region: HttpTypes.StoreRegion) => {
+    region.countries?.forEach((c) => {
+      regionMap.set(c.iso_2 ?? "", region)
+    })
+  })
+
+  return regionMap
 }
 
 /**

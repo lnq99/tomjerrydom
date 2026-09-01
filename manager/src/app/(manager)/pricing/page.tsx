@@ -11,7 +11,7 @@ import {
   getPricingConfig, saveCategoryMargins, saveProductCosts, syncPrices,
   type PricingConfig,
 } from "@/lib/api"
-import { formatRub, rubles, toKopecks } from "@/lib/utils"
+import { formatRub, displayRub, parseRubles } from "@/lib/utils"
 
 type Tab = "margins" | "costs"
 
@@ -211,7 +211,7 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
 
   useEffect(() => {
     const init: Record<string, string> = {}
-    for (const prod of data.products) init[prod.id] = rubles(prod.cost)
+    for (const prod of data.products) init[prod.id] = displayRub(prod.cost)
     setCosts(init)
     setDirty(new Set())
   }, [data.products])
@@ -224,7 +224,7 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
   const saveMutation = useMutation({
     mutationFn: () =>
       saveProductCosts(
-        [...dirty].map((id) => ({ product_id: id, cost: toKopecks(costs[id] ?? "0") }))
+        [...dirty].map((id) => ({ product_id: id, cost: parseRubles(costs[id] ?? "0") }))
       ),
     onSuccess: () => { toast.success("Đã lưu giá nhập"); setDirty(new Set()); onSaved() },
     onError: () => toast.error("Lỗi lưu"),
@@ -240,7 +240,7 @@ function CostsTab({ data, onSaved }: { data: PricingConfig; onSaved: () => void 
   })
 
   function getPreview(prod: typeof data.products[0], tierId: string): string {
-    const cost = toKopecks(costs[prod.id] ?? "0")
+    const cost = parseRubles(costs[prod.id] ?? "0")
     if (!cost) return "—"
     const catConfig = data.categories.find((c) => c.id === prod.category_id)
     const profit = catConfig?.tier_profit?.[tierId] ?? data.default_profit[tierId] ?? 30
