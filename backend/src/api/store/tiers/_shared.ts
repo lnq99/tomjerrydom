@@ -25,7 +25,7 @@ export function getTierProfit(
   return DEFAULT_TIER_PROFIT[tierId] ?? 30
 }
 
-/** Selling price = cost × (1 + profit%) */
+/** Selling price = cost × (1 + profit%), in whole rubles */
 export function calcPrice(cost: number, profitPercent: number): number {
   return Math.round(cost * (1 + profitPercent / 100))
 }

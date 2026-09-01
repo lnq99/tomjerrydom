@@ -1,10 +1,10 @@
 import { listProducts } from "@lib/data/products"
+import { getTierId } from "@lib/data/cookies"
+import { getTierProductPrices } from "@lib/data/tiers"
+import { applyTierPrices } from "@lib/util/tier-prices"
 import { HttpTypes } from "@medusajs/types"
 import ProductActions from "@modules/products/components/product-actions"
 
-/**
- * Fetches real time pricing for a product and renders the product actions component.
- */
 export default async function ProductActionsWrapper({
   id,
   region,
@@ -21,5 +21,9 @@ export default async function ProductActionsWrapper({
     return null
   }
 
-  return <ProductActions product={product} region={region} />
+  const tierId = await getTierId()
+  const tierPrices = await getTierProductPrices(tierId, [product.id!])
+  const [pricedProduct] = applyTierPrices([product], tierPrices)
+
+  return <ProductActions product={pricedProduct} region={region} />
 }

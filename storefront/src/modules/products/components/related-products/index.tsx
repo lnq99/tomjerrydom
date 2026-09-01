@@ -1,5 +1,8 @@
 import { listProducts } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
+import { getTierId } from "@lib/data/cookies"
+import { getTierProductPrices } from "@lib/data/tiers"
+import { applyTierPrices, hasSellingPrice } from "@lib/util/tier-prices"
 import { HttpTypes } from "@medusajs/types"
 import Product from "../product-preview"
 
@@ -18,7 +21,6 @@ export default async function RelatedProducts({
     return null
   }
 
-  // edit this function to define your related products logic
   const queryParams: HttpTypes.StoreProductListParams = {}
   if (region?.id) {
     queryParams.region_id = region.id
@@ -33,14 +35,17 @@ export default async function RelatedProducts({
   }
   queryParams.is_giftcard = false
 
-  const products = await listProducts({
+  const rawProducts = await listProducts({
     queryParams,
     countryCode,
-  }).then(({ response }) => {
-    return response.products.filter(
-      (responseProduct) => responseProduct.id !== product.id
-    )
-  })
+  }).then(({ response }) =>
+    response.products.filter((p) => p.id !== product.id)
+  )
+
+  const tierId = await getTierId()
+  const productIds = rawProducts.map((p) => p.id).filter(Boolean) as string[]
+  const tierPrices = await getTierProductPrices(tierId, productIds)
+  const products = applyTierPrices(rawProducts, tierPrices).filter(hasSellingPrice)
 
   if (!products.length) {
     return null

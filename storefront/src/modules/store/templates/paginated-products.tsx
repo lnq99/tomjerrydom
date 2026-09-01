@@ -3,6 +3,7 @@ import { getRegion } from "@lib/data/regions"
 import { getTierId } from "@lib/data/cookies"
 import { getTierProductPrices } from "@lib/data/tiers"
 import { OptionValueIds } from "@lib/util/product-option-filters"
+import { applyTierPrices, hasSellingPrice } from "@lib/util/tier-prices"
 import { HttpTypes } from "@medusajs/types"
 import ProductPreview from "@modules/products/components/product-preview"
 import { Pagination } from "@modules/store/components/pagination"
@@ -28,37 +29,6 @@ function matchesSearch(product: HttpTypes.StoreProduct, query: string): boolean 
   const haystack = normalizeSearch(brand + title)
   const needle = normalizeSearch(query)
   return needle.length === 0 || haystack.includes(needle)
-}
-
-function hasSellingPrice(product: HttpTypes.StoreProduct): boolean {
-  return (product.variants ?? []).some((v) => {
-    const amount = (v as any).calculated_price?.calculated_amount
-    return typeof amount === "number" && amount > 0
-  })
-}
-
-function applyTierPrices(
-  products: HttpTypes.StoreProduct[],
-  tierPrices: Record<string, number>
-): HttpTypes.StoreProduct[] {
-  if (Object.keys(tierPrices).length === 0) return products
-  return products.map((product) => {
-    const variants = product.variants?.map((variant) => {
-      const price = tierPrices[variant.id]
-      // Not in map → product wasn't queried, keep Medusa catalog price
-      if (price === undefined) return variant
-      // price=0 means no cost set → suppress whatever Medusa catalog has
-      if (price === 0) return { ...variant, calculated_price: null } as HttpTypes.StoreProductVariant
-      const cp = (variant as any).calculated_price
-      return {
-        ...variant,
-        calculated_price: cp
-          ? { ...cp, calculated_amount: price, original_amount: price }
-          : null,
-      } as HttpTypes.StoreProductVariant
-    }) ?? null
-    return { ...product, variants } as HttpTypes.StoreProduct
-  })
 }
 
 export default async function PaginatedProducts({
