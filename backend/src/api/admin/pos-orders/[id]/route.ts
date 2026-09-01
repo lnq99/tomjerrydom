@@ -107,7 +107,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     ? collections[0].status ?? "not_paid"
     : "not_paid"
 
-  // Fetch cost from product.metadata.cost (kopecks) for each variant
+  // Fetch cost from product.metadata.cost (rubles) for each variant as fallback
   const variantIds = ((order as any).items ?? []).map((i: any) => i.variant_id).filter(Boolean)
   const costMap: Record<string, number> = {}
   if (variantIds.length) {
@@ -117,8 +117,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       filters: { id: variantIds },
     }) as Promise<{ data: { id: string; product?: { metadata?: Record<string, unknown> | null } | null }[] }>)
     for (const v of variants ?? []) {
-      const cost = (v.product?.metadata?.cost as number) ?? 0
-      costMap[v.id] = Math.round(cost) // already in kopecks
+      costMap[v.id] = Math.round((v.product?.metadata?.cost as number) ?? 0)
     }
   }
 
@@ -135,7 +134,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         title: item.title,
         variant_id: item.variant_id ?? null,
         quantity: item.quantity,
-        unit_price: (item.unit_price ?? 0) * 100,
+        unit_price: item.unit_price ?? 0,
         // Prefer snapshotted cost from item metadata; fall back to current product cost
         cost_price: (item.metadata?.cost_price as number) ?? costMap[item.variant_id] ?? 0,
         thumbnail: item.thumbnail ?? null,
@@ -171,7 +170,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     for (const item of toUpdate) {
       const update: Record<string, unknown> = {}
       if (item.quantity !== undefined) update.quantity = item.quantity
-      if (item.unit_price !== undefined) update.unit_price = Math.round(item.unit_price / 100) // kopecks → rubles
+      if (item.unit_price !== undefined) update.unit_price = Math.round(item.unit_price)
       if (item.metadata !== undefined) update.metadata = item.metadata
       await orderModule.updateOrderLineItems(item.id, update)
     }
@@ -291,7 +290,11 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   }
 
   if (cancel) {
-    await orderModule.cancelOrder(id)
+    try {
+      await orderModule.cancelOrder(id)
+    } catch (e: any) {
+      return res.status(400).json({ message: e?.message ?? "Cannot cancel this order" })
+    }
   }
 
   if (archive) {

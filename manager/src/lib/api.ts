@@ -54,6 +54,10 @@ async function apiFetch<T>(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }))
+    if (res.status === 401 && typeof window !== "undefined") {
+      clearToken()
+      window.location.href = "/login"
+    }
     throw new ApiError(res.status, err.message ?? res.statusText)
   }
 

@@ -267,10 +267,10 @@ export default function OrderDetailPage() {
         saving={saving}
         onBack={() => setView("pick")}
         onSetPrice={setItemPrice}
-        onSetExtraPrice={(key, kopecks) =>
+        onSetExtraPrice={(key, rubles) =>
           setPs((prev) =>
             prev
-              ? { ...prev, extras: prev.extras.map((g) => (g.key === key ? { ...g, unit_price: kopecks } : g)) }
+              ? { ...prev, extras: prev.extras.map((g) => (g.key === key ? { ...g, unit_price: rubles } : g)) }
               : prev
           )
         }

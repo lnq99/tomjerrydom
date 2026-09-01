@@ -125,7 +125,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     metadata: { source: "pos", tier_id: tierId ?? "retail", mode, total_cost: totalCost },
   })
 
-  const totalRubles = Math.round(total / 100)
+  const totalRubles = Math.round(total)
 
   await orderModule.createOrderLineItems(
     order.id,
@@ -135,9 +135,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         : item.title,
       variant_id: item.variantId,
       quantity: item.quantity,
-      unit_price: Math.round(item.unitPrice / 100), // frontend sends kopecks; Medusa stores as-is in rubles
+      unit_price: Math.round(item.unitPrice),
       thumbnail: item.thumbnail ?? undefined,
-      metadata: { cost_price: item.resolvedCost }, // snapshot cost in kopecks
+      metadata: { cost_price: item.resolvedCost },
     }))
   )
 
