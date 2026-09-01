@@ -1,6 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { formatRub } from "@lib/util/money"
+import { signOrderId } from "@lib/util/order-token"
 
 type Props = {
   order: HttpTypes.StoreOrder
@@ -19,6 +20,10 @@ export default async function OrderCompletedTemplate({ order }: Props) {
   const isAnonymous = contact !== null
   const items = order.items ?? []
   const total = order.total ?? 0
+  const sig = signOrderId(order.id)
+  const countryCode = order.shipping_address?.country_code?.toLowerCase() ?? "ru"
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? `https://tomjerry.ru/${countryCode}`
+  const statusUrl = `${baseUrl}/order/${order.id}/status?sig=${sig}`
   const orderUrl = `https://tomjerry.ru/ru/order/${order.id}/confirmed`
 
   return (
@@ -44,22 +49,30 @@ export default async function OrderCompletedTemplate({ order }: Props) {
         {/* Share card */}
         <div className="bg-ui-bg-subtle rounded-xl p-5 text-center">
           <p className="text-sm font-medium text-ui-fg-base mb-1">
-            Отправьте номер заказа менеджеру
+            Отправьте ссылку на статус заказа менеджеру
           </p>
           <p className="text-4xl font-bold text-ui-fg-base mb-4">
             №{order.display_id}
           </p>
-          <a
-            href={`https://t.me/share/url?url=${encodeURIComponent(orderUrl)}&text=${encodeURIComponent(`Мой заказ №${order.display_id} в Tom&Jerry Дом`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-[#229ED9] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[#1a8cc4] transition-colors"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.932z" />
-            </svg>
-            Поделиться в Telegram
-          </a>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <a
+              href={`https://t.me/share/url?url=${encodeURIComponent(statusUrl)}&text=${encodeURIComponent(`Статус заказа №${order.display_id} — Tom&Jerry Дом`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-[#229ED9] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[#1a8cc4] transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.932z" />
+              </svg>
+              Поделиться статусом
+            </a>
+            <LocalizedClientLink
+              href={`/order/${order.id}/status?sig=${sig}`}
+              className="inline-flex items-center justify-center gap-2 border border-ui-border-base bg-white text-ui-fg-base px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-ui-bg-subtle transition-colors"
+            >
+              Посмотреть статус
+            </LocalizedClientLink>
+          </div>
         </div>
 
         {/* Contact info */}

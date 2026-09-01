@@ -400,10 +400,11 @@ export async function placeOrder(cartId?: string) {
   return cartRes.cart
 }
 
-// Shipping option IDs configured in Medusa
-export const SHIPPING_OPTION_PICKUP = "so_01M1F0V2SQ7M1J7V9HXYZKSP99"
-export const SHIPPING_OPTION_COURIER = "so_01M1F0VRQ7BJRFBTH0NN7YEB49"
-export const SHIPPING_OPTION_CONTACT_MANAGER = "so_01M1F0VRWA99Q6VG3ZB25DP5G2"
+import {
+  SHIPPING_OPTION_PICKUP,
+  SHIPPING_OPTION_COURIER,
+  SHIPPING_OPTION_CONTACT_MANAGER,
+} from "@lib/constants/shipping"
 
 export async function placeAnonymousOrder(prevState: unknown, formData: FormData) {
   const contactMethod = (formData.get("contact_method") as string) || "telegram"
