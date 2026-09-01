@@ -400,6 +400,110 @@ export async function placeOrder(cartId?: string) {
   return cartRes.cart
 }
 
+// Shipping option IDs configured in Medusa
+export const SHIPPING_OPTION_PICKUP = "so_01M1F0V2SQ7M1J7V9HXYZKSP99"
+export const SHIPPING_OPTION_COURIER = "so_01M1F0VRQ7BJRFBTH0NN7YEB49"
+export const SHIPPING_OPTION_CONTACT_MANAGER = "so_01M1F0VRWA99Q6VG3ZB25DP5G2"
+
+export async function placeAnonymousOrder(prevState: unknown, formData: FormData) {
+  const contactMethod = (formData.get("contact_method") as string) || "telegram"
+  const contactValue = (formData.get("contact_value") as string) || ""
+  const note = (formData.get("note") as string) || ""
+
+  if (!contactValue.trim()) return "Укажите контакт для связи"
+
+  try {
+    const cartId = await getCartId()
+    if (!cartId) throw new Error("Корзина не найдена")
+
+    await updateCart({
+      email: `anon.${Date.now()}@orders.local`,
+      shipping_address: {
+        first_name: "Анонимный",
+        last_name: "заказ",
+        address_1: `${contactMethod}: ${contactValue}`,
+        address_2: note || undefined,
+        city: "—",
+        country_code: "ru",
+        postal_code: "000000",
+        phone: contactValue,
+      },
+      billing_address: {
+        first_name: "Анонимный",
+        last_name: "заказ",
+        address_1: `${contactMethod}: ${contactValue}`,
+        city: "—",
+        country_code: "ru",
+        postal_code: "000000",
+      },
+    } as any)
+
+    await setShippingMethod({ cartId, shippingMethodId: SHIPPING_OPTION_CONTACT_MANAGER })
+
+    const cart = await retrieveCart()
+    if (!cart) throw new Error("Не удалось загрузить корзину")
+
+    await initiatePaymentSession(cart, { provider_id: "pp_system_default" })
+  } catch (e: any) {
+    return e.message ?? "Ошибка при оформлении заказа"
+  }
+
+  await placeOrder()
+}
+
+export async function placeTraditionalOrder(prevState: unknown, formData: FormData) {
+  const deliveryType = (formData.get("delivery_type") as string) || "pickup"
+  const firstName = (formData.get("first_name") as string) || ""
+  const lastName = (formData.get("last_name") as string) || ""
+  const email = (formData.get("email") as string) || ""
+  const phone = (formData.get("phone") as string) || ""
+  const note = (formData.get("note") as string) || ""
+  const city = (formData.get("city") as string) || ""
+  const address1 = (formData.get("address_1") as string) || ""
+  const postalCode = (formData.get("postal_code") as string) || ""
+
+  if (!firstName.trim()) return "Укажите имя"
+  if (!email.trim()) return "Укажите email"
+  if (!phone.trim()) return "Укажите телефон"
+  if (deliveryType === "courier" && !city.trim()) return "Укажите город доставки"
+  if (deliveryType === "courier" && !address1.trim()) return "Укажите адрес доставки"
+
+  try {
+    const cartId = await getCartId()
+    if (!cartId) throw new Error("Корзина не найдена")
+
+    const address = {
+      first_name: firstName,
+      last_name: lastName,
+      address_1: deliveryType === "courier" ? address1 : "Самовывоз",
+      address_2: note || undefined,
+      city: deliveryType === "courier" ? city : "—",
+      country_code: "ru",
+      postal_code: deliveryType === "courier" ? postalCode : "000000",
+      phone,
+    }
+
+    await updateCart({
+      email,
+      shipping_address: address,
+      billing_address: address,
+    } as any)
+
+    const shippingOptionId =
+      deliveryType === "courier" ? SHIPPING_OPTION_COURIER : SHIPPING_OPTION_PICKUP
+    await setShippingMethod({ cartId, shippingMethodId: shippingOptionId })
+
+    const cart = await retrieveCart()
+    if (!cart) throw new Error("Не удалось загрузить корзину")
+
+    await initiatePaymentSession(cart, { provider_id: "pp_system_default" })
+  } catch (e: any) {
+    return e.message ?? "Ошибка при оформлении заказа"
+  }
+
+  await placeOrder()
+}
+
 /**
  * Updates the countrycode param and revalidates the regions cache
  * @param regionId

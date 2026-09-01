@@ -8,6 +8,14 @@ type ConvertToLocaleParams = {
   locale?: string
 }
 
+export const formatRub = (amount: number) =>
+  new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount)
+
 export const convertToLocale = ({
   amount,
   currency_code,
