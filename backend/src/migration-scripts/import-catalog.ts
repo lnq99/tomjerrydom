@@ -7,6 +7,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   createProductCategoriesWorkflow,
   createProductsWorkflow,
+  linkProductsToSalesChannelWorkflow,
 } from "@medusajs/medusa/core-flows"
 
 // ---------------------------------------------------------------------------
@@ -266,6 +267,35 @@ export default async function import_catalog({
 
   skipped = catalog.products.length - toCreate.length
   logger.info(`Done. Created: ${created}, Skipped (already existed): ${skipped}`)
+
+  // -------------------------------------------------------------------------
+  // Reconcile: ensure ALL products are linked to the sales channel
+  // (catches products created via admin UI or other paths without the link)
+  // -------------------------------------------------------------------------
+  logger.info("Reconciling sales channel links...")
+  const { data: allProductsForLink } = await query.graph({
+    entity: "product",
+    fields: ["id", "title", "sales_channels.id"],
+  })
+  const unlinked = allProductsForLink.filter(
+    (prod: any) => !(prod.sales_channels ?? []).some((sc: any) => sc.id === salesChannelId)
+  )
+  if (unlinked.length) {
+    await linkProductsToSalesChannelWorkflow(container).run({
+      input: {
+        data: [
+          {
+            sales_channel_id: salesChannelId,
+            product_ids: unlinked.map((p: any) => p.id),
+          },
+        ],
+      },
+    })
+    for (const p of unlinked) {
+      logger.info(`Linked "${(p as any).title}" to sales channel`)
+    }
+  }
+  logger.info(`Reconciliation done: ${unlinked.length} product(s) newly linked`)
 
   // -------------------------------------------------------------------------
   // Upload images (optional — skipped if FILE module unavailable)

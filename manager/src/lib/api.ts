@@ -166,10 +166,22 @@ export type CreateProductInput = {
     prices?: { currency_code: string; amount: number }[]
     options?: Record<string, string>
   }[]
+  sales_channels?: { id: string }[]
+}
+
+export async function listSalesChannels(): Promise<{ sales_channels: { id: string; name: string }[] }> {
+  return apiFetch("/admin/sales-channels")
 }
 
 export async function createProduct(data: CreateProductInput): Promise<{ product: AdminProduct }> {
-  return apiFetch("/admin/products", { method: "POST", body: JSON.stringify(data) })
+  let payload = { ...data }
+  if (!payload.sales_channels) {
+    const { sales_channels } = await listSalesChannels()
+    if (sales_channels.length) {
+      payload.sales_channels = sales_channels.map((sc) => ({ id: sc.id }))
+    }
+  }
+  return apiFetch("/admin/products", { method: "POST", body: JSON.stringify(payload) })
 }
 
 export async function deleteProduct(id: string): Promise<void> {
