@@ -4,6 +4,20 @@ import { HttpTypes } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Thumbnail from "../thumbnail"
 import PreviewPrice from "./price"
+import QuickAddButton from "../quick-add-button"
+
+const NEW_DAYS = 14
+
+function getProductBadges(product: HttpTypes.StoreProduct) {
+  const isNew = product.created_at
+    ? Date.now() - new Date(product.created_at).getTime() < NEW_DAYS * 86_400_000
+    : false
+  const tags = (product.tags ?? []) as Array<{ value?: string }>
+  const isHot = tags.some((t) =>
+    ["hit", "хит", "hot"].includes((t.value ?? "").toLowerCase())
+  )
+  return { isNew, isHot }
+}
 
 function VariantPills({ variants }: { variants: HttpTypes.StoreProductVariant[] }) {
   if (!variants || variants.length <= 1) return null
@@ -34,15 +48,18 @@ export default async function ProductPreview({
   isFeatured,
   region: _region,
   listView,
+  countryCode = "ru",
 }: {
   product: HttpTypes.StoreProduct
   isFeatured?: boolean
   region: HttpTypes.StoreRegion
   listView?: boolean
+  countryCode?: string
 }) {
   const { cheapestPrice } = getProductPrice({ product })
   const brand = typeof product.subtitle === "string" && product.subtitle ? product.subtitle : null
   const variants = product.variants ?? []
+  const { isNew, isHot } = getProductBadges(product)
 
   if (listView) {
     return (
@@ -58,6 +75,8 @@ export default async function ProductPreview({
               size="square"
               className="!w-20 !aspect-square"
               alt={product.title ?? ""}
+              isNew={isNew}
+              isHot={isHot}
             />
           </div>
           <div className="flex flex-1 items-start justify-between gap-x-4 min-w-0">
@@ -101,13 +120,23 @@ export default async function ProductPreview({
   return (
     <LocalizedClientLink href={`/products/${product.handle}`} className="group">
       <div data-testid="product-wrapper">
-        <Thumbnail
-          thumbnail={product.thumbnail}
-          images={product.images}
-          size="square"
-          isFeatured={isFeatured}
-          alt={product.title ?? ""}
-        />
+        <div className="relative">
+          <Thumbnail
+            thumbnail={product.thumbnail}
+            images={product.images}
+            size="square"
+            isFeatured={isFeatured}
+            alt={product.title ?? ""}
+            isNew={isNew}
+            isHot={isHot}
+          />
+          {variants.length === 1 && variants[0]?.id && (
+            <QuickAddButton
+              variantId={variants[0].id}
+              countryCode={countryCode}
+            />
+          )}
+        </div>
         <div className="mt-3">
           {brand && (
             <p className="txt-xsmall text-ui-fg-muted mb-0.5">{brand}</p>

@@ -11,6 +11,8 @@ type ThumbnailProps = {
   isFeatured?: boolean
   className?: string
   alt?: string
+  isNew?: boolean
+  isHot?: boolean
   "data-testid"?: string
 }
 
@@ -21,6 +23,8 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
   isFeatured,
   className,
   alt,
+  isNew,
+  isHot,
   "data-testid": dataTestid,
 }) => {
   const initialImage = thumbnail || images?.[0]?.url
@@ -43,6 +47,20 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
       data-testid={dataTestid}
     >
       <ImageOrPlaceholder image={initialImage} size={size} alt={alt} />
+      {(isNew || isHot) && (
+        <div className="absolute top-2 left-2 flex flex-col gap-1 pointer-events-none">
+          {isHot && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold leading-none uppercase tracking-wide bg-red-500 text-white">
+              Хит
+            </span>
+          )}
+          {isNew && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold leading-none uppercase tracking-wide bg-green-500 text-white">
+              Новинка
+            </span>
+          )}
+        </div>
+      )}
     </Container>
   )
 }
