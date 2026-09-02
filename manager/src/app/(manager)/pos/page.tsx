@@ -169,7 +169,6 @@ export default function PosPage() {
   const handleAdd = useCallback(
     (item: LineItem) => {
       dispatch({ type: "CART", tabId: state.activeId, action: { type: "ADD", item } })
-      setMobileTab("cart")
     },
     [state.activeId]
   )

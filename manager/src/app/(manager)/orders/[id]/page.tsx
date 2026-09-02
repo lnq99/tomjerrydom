@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { QtyControl } from "@/components/pos/qty-control"
-import { getPosOrder, updatePosOrder, markOrderAsPaid, cancelOrder, archiveOrder, createPosOrder, listCustomers, type OrderDetail, type OrderDetailItem, type CustomerProfile } from "@/lib/api"
+import { getPosOrder, updatePosOrder, markOrderAsPaid, cancelOrder, archiveOrder, createPosOrder, listCustomers, getOrderStatusLink, type OrderDetail, type OrderDetailItem, type CustomerProfile } from "@/lib/api"
 import { formatRub, displayRub, parseRubles, cn } from "@/lib/utils"
 import { useSensitive, maskPhone } from "@/lib/sensitive-context"
 import { format } from "date-fns"
@@ -206,6 +206,16 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleCopyStatusLink() {
+    try {
+      const { url } = await getOrderStatusLink(id)
+      await navigator.clipboard.writeText(url)
+      toast.success("Đã sao chép liên kết trạng thái")
+    } catch {
+      toast.error("Không thể sao chép liên kết")
+    }
+  }
+
   async function handleClone() {
     if (!order) return
     setSaving(true)
@@ -327,6 +337,7 @@ export default function OrderDetailPage() {
                 </Button>
               )}
               <ActionsMenu>
+                <ActionsMenuItem onClick={handleCopyStatusLink} disabled={saving}>Sao chép link trạng thái</ActionsMenuItem>
                 <ActionsMenuItem onClick={handleClone} disabled={saving}>Nhân bản</ActionsMenuItem>
                 {isCompleted && <ActionsMenuItem onClick={handleArchive} disabled={saving}>Lưu trữ</ActionsMenuItem>}
                 {isPending && (

@@ -1,16 +1,16 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { getOrdersListWorkflow } from "@medusajs/core-flows"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { result } = await getOrdersListWorkflow(req.scope).run({
+    input: {
+      fields: ["id", "display_id", "total", "created_at", "status", "metadata"],
+      variables: { filters: { is_draft_order: false }, skip: 0, take: 2000 },
+    },
+  })
 
-  const { data: orders } = await (query.graph({
-    entity: "order",
-    fields: ["id", "display_id", "total", "created_at", "status", "metadata"],
-    pagination: { limit: 2000, offset: 0 },
-  }) as Promise<{ data: any[] }>)
+  const { rows: orders } = result
 
-  // Aggregate unique customers keyed by phone, falling back to name
   const byKey = new Map<string, {
     name: string; phone: string; note: string
     order_count: number; last_order_id: string
@@ -18,12 +18,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }>()
 
   for (const order of orders ?? []) {
-    const meta = order.metadata ?? {}
+    const meta = (order as any).metadata ?? {}
     const name = String(meta.customer_name ?? "").trim()
     const phone = String(meta.customer_phone ?? "").trim()
     if (!name && !phone) continue
     const key = phone || name
     const existing = byKey.get(key)
+    const orderTotal = (order as any).total ?? 0
     if (!existing || order.created_at > existing.last_order_at) {
       byKey.set(key, {
         name, phone,
@@ -32,11 +33,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         last_order_id: order.id,
         last_order_display_id: order.display_id,
         last_order_at: order.created_at,
-        total_spent: (existing?.total_spent ?? 0) + (order.total ?? 0) * 100,
+        total_spent: (existing?.total_spent ?? 0) + orderTotal,
       })
     } else {
       existing.order_count++
-      existing.total_spent += (order.total ?? 0) * 100
+      existing.total_spent += orderTotal
     }
   }
 

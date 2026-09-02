@@ -340,6 +340,10 @@ export async function getPosOrder(id: string): Promise<{ order: OrderDetail }> {
   return apiFetch(`/admin/pos-orders/${id}`)
 }
 
+export async function getOrderStatusLink(id: string): Promise<{ url: string }> {
+  return apiFetch(`/admin/pos-orders/${id}/status-link`)
+}
+
 type PosOrderPatchItem =
   | { action: "update"; id: string; quantity?: number; unit_price?: number; metadata?: Record<string, unknown> }
   | { action: "add"; title: string; variant_id?: string; quantity?: number; unit_price?: number; metadata?: Record<string, unknown> }
