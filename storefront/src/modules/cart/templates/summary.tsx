@@ -74,8 +74,43 @@ const Summary = ({
 
   const retailTotal = tierTotals.find((t) => t.id === "retail")
 
+  // Progress bar toward next tier (nearest unachieved tier above current)
+  const nextTier = tiers
+    .filter((t) => t.min_order_amount > (currentTier?.min_order_amount ?? 0))
+    .sort((a, b) => a.sort_order - b.sort_order)[0]
+  const progressPct = nextTier
+    ? Math.min(Math.round((cartItemSubtotal / nextTier.min_order_amount) * 100), 100)
+    : 100
+  const amountToNext = nextTier ? Math.max(nextTier.min_order_amount - cartItemSubtotal, 0) : 0
+
   return (
     <div className="flex flex-col gap-y-4">
+      {/* Tier progress bar — shown when there's a next tier to unlock */}
+      {tiers.length > 1 && nextTier && (
+        <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between txt-compact-small">
+            <span className="text-ui-fg-subtle font-medium">
+              {currentTier?.label ?? "Розница"}
+            </span>
+            <span className="text-ui-fg-muted text-xs">
+              {amountToNext > 0
+                ? `Ещё ${formatRub(amountToNext)} до «${nextTier.label}»`
+                : `Уровень «${nextTier.label}» разблокирован!`}
+            </span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-ui-bg-base overflow-hidden">
+            <div
+              className="h-full rounded-full bg-ui-fg-interactive transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-ui-fg-muted">
+            <span>{formatRub(cartItemSubtotal)}</span>
+            <span>{formatRub(nextTier.min_order_amount)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Qualifying upgrade banners (green) */}
       {meetsMinimum && tiers.length > 1 && (
         <TierSwitcher
