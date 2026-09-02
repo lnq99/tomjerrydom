@@ -396,6 +396,21 @@ export async function placeOrder(cartId?: string) {
     const countryCode =
       cartRes.order.shipping_address?.country_code?.toLowerCase()
 
+    // Re-apply tier prices: completeCartWorkflow may refresh line item prices
+    // from Medusa's catalog (overriding our applyTier values).
+    const tierId = await getTierId()
+    try {
+      const BASE = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000"
+      const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ""
+      await fetch(`${BASE}/store/tiers/apply-to-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-publishable-api-key": PUB_KEY },
+        body: JSON.stringify({ order_id: cartRes.order.id, tier_id: tierId || "retail" }),
+      })
+    } catch {
+      // Non-fatal: order is placed even if price correction fails
+    }
+
     const orderCacheTag = await getCacheTag("orders")
     revalidateTag(orderCacheTag)
 
