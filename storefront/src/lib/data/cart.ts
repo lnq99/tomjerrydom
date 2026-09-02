@@ -10,11 +10,13 @@ import {
   getCacheOptions,
   getCacheTag,
   getCartId,
+  getTierId,
   removeCartId,
   setCartId,
 } from "./cookies"
 import { getRegion } from "./regions"
 import { getLocale } from "./locale-actions"
+import { applyTier } from "./tiers"
 
 /**
  * Retrieves a cart by its ID. If no ID is provided, it will use the cart ID from the cookies.
@@ -148,6 +150,10 @@ export async function addToCart({
       headers
     )
     .then(async () => {
+      // Apply tier pricing so the new line item gets the correct selling price
+      const tierId = await getTierId()
+      await applyTier(cart.id, tierId || "retail")
+
       const cartCacheTag = await getCacheTag("carts")
       revalidateTag(cartCacheTag)
 
