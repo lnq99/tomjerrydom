@@ -7,6 +7,7 @@ import { listCategories } from "@lib/data/categories"
 import { StoreRegion } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CartButton from "@modules/layout/components/cart-button"
+import MobileSearchToggle from "@modules/layout/components/mobile-search-toggle"
 import SearchBox from "@modules/layout/components/search-box"
 import SideMenu from "@modules/layout/components/side-menu"
 import { HttpTypes } from "@medusajs/types"
@@ -100,6 +101,7 @@ export default async function Nav() {
                 Аккаунт
               </LocalizedClientLink>
             </div>
+            <MobileSearchToggle />
             <Suspense
               fallback={
                 <LocalizedClientLink href="/cart" data-testid="nav-cart-link">
