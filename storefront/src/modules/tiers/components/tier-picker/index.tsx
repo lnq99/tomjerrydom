@@ -3,12 +3,12 @@
 import { selectTier, type Tier } from "@lib/data/tiers"
 import { clx } from "@modules/common/components/ui"
 
-function formatRub(kopecks: number) {
+function formatRub(amount: number) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: "RUB",
     maximumFractionDigits: 0,
-  }).format(kopecks / 100)
+  }).format(amount)
 }
 
 type Props = {

@@ -1,9 +1,68 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
+  capturePaymentWorkflow,
   createOrderPaymentCollectionWorkflow,
   markPaymentCollectionAsPaid,
 } from "@medusajs/medusa/core-flows"
+import { reserveInventoryForOrder } from "../route"
+
+/** Return (add back) stocked_quantity for each item — inverse of deductVariantStock. */
+async function returnVariantStock(
+  scope: MedusaRequest["scope"],
+  items: { variant_id?: string | null; quantity: number }[]
+) {
+  const withVariant = items.filter((i) => i.variant_id && i.quantity > 0)
+  if (!withVariant.length) return
+
+  try {
+    const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+    const inventoryModule = scope.resolve(Modules.INVENTORY)
+
+    const variantIds = withVariant.map((i) => i.variant_id!)
+    const { data: links } = await (query.graph({
+      entity: "product_variant",
+      fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
+      filters: { id: variantIds },
+    }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+
+    const variantToInvItem = new Map<string, string>()
+    for (const v of links ?? []) {
+      const inv = v.inventory_items?.[0]
+      const invId = inv?.inventory_item_id ?? inv?.id
+      if (invId) variantToInvItem.set(v.id, invId)
+    }
+    if (!variantToInvItem.size) return
+
+    const invItemIds = [...variantToInvItem.values()]
+    const levels = await inventoryModule.listInventoryLevels({ inventory_item_id: invItemIds })
+    const levelMap = new Map<string, any>()
+    for (const l of levels as any[]) {
+      const prev = levelMap.get(l.inventory_item_id)
+      if (!prev || (l.stocked_quantity ?? 0) > (prev.stocked_quantity ?? 0)) {
+        levelMap.set(l.inventory_item_id, l)
+      }
+    }
+
+    const updates: { inventory_item_id: string; location_id: string; stocked_quantity: number }[] = []
+    for (const item of withVariant) {
+      const invId = variantToInvItem.get(item.variant_id!)
+      if (!invId) continue
+      const level = levelMap.get(invId)
+      if (!level) continue
+      updates.push({
+        inventory_item_id: invId,
+        location_id: level.location_id,
+        stocked_quantity: (level.stocked_quantity ?? 0) + item.quantity,
+      })
+    }
+    if (updates.length) {
+      await inventoryModule.updateInventoryLevels(updates as any)
+    }
+  } catch {
+    // Non-fatal
+  }
+}
 
 /** Deduct stocked_quantity for each item at the first available stock location. Allows negative. */
 async function deductVariantStock(
@@ -101,7 +160,9 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       pc.status === "captured" ||
       pc.payments?.some((p) => p.captured_at != null)
   )
-  const paymentStatus = hasCapturedPayment
+  const paymentStatus = (order.status as string) === "canceled"
+    ? "not_paid"
+    : hasCapturedPayment
     ? "captured"
     : collections.length > 0
     ? collections[0].status ?? "not_paid"
@@ -173,89 +234,62 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
       if (item.unit_price !== undefined) update.unit_price = Math.round(item.unit_price)
       if (item.metadata !== undefined) update.metadata = item.metadata
       await orderModule.updateOrderLineItems(item.id, update)
+
+      // Sync inventory reservation to the new quantity
+      if (item.quantity !== undefined) {
+        try {
+          const inventoryModule = req.scope.resolve(Modules.INVENTORY)
+          const existingReservations = await inventoryModule.listReservationItems({ line_item_id: item.id })
+          if (existingReservations.length) {
+            if (item.quantity <= 0) {
+              await inventoryModule.deleteReservationItems(existingReservations.map((r: any) => r.id))
+            } else {
+              await inventoryModule.updateReservationItems(
+                existingReservations.map((r: any) => ({ id: r.id, quantity: item.quantity })) as any
+              )
+            }
+          } else if (item.quantity > 0) {
+            // No reservation yet — look up variant_id from the order and create one
+            const orderWithItems = await orderModule.retrieveOrder(id, { relations: ["items"] })
+            const lineItem = ((orderWithItems as any).items ?? []).find((i: any) => i.id === item.id)
+            const variantId = lineItem?.variant_id
+            if (variantId) {
+              await reserveInventoryForOrder(req.scope, [{ id: item.id, variant_id: variantId, quantity: item.quantity }])
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
     }
 
     if (toAdd.length) {
-      await orderModule.createOrderLineItems(
+      const newLineItems = await orderModule.createOrderLineItems(
         id,
         toAdd.map((item) => ({
           title: item.title,
           variant_id: item.variant_id ?? undefined,
           quantity: item.quantity ?? 1,
-          unit_price: Math.round((item.unit_price ?? 0) / 100), // kopecks → rubles
+          unit_price: Math.round(item.unit_price ?? 0),
           metadata: item.metadata ?? {},
         }))
       )
+      // Check if this is a pending order — if so, reserve the newly added items
+      const orderStatus = await orderModule.retrieveOrder(id, { select: ["id", "status"] })
+      if ((orderStatus as any).status === "pending") {
+        await reserveInventoryForOrder(
+          req.scope,
+          (newLineItems as any[]).map((li, idx) => ({
+            id: li.id,
+            variant_id: toAdd[idx]?.variant_id ?? null,
+            quantity: li.quantity,
+          }))
+        )
+      }
     }
   }
 
   if (metadata) {
     const existing = await orderModule.retrieveOrder(id, { select: ["id", "metadata"] })
     const merged = { ...(existing.metadata ?? {}), ...metadata }
-
-    // When picking is confirmed: create inventory reservations for picked quantities
-    if (metadata.picking_done && !existing.metadata?.picking_done) {
-      try {
-        const inventoryModule = req.scope.resolve(Modules.INVENTORY)
-        const orderWithItems = await orderModule.retrieveOrder(id, { relations: ["items"] })
-        const pickedQtys = (metadata.picked_quantities ?? {}) as Record<string, number>
-
-        const variantIds = ((orderWithItems as any).items ?? [])
-          .map((i: any) => i.variant_id).filter(Boolean)
-
-        if (variantIds.length) {
-          const { data: links } = await (query.graph({
-            entity: "product_variant",
-            fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
-            filters: { id: variantIds },
-          }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
-
-          const variantToInvItem = new Map<string, string>()
-          for (const v of links ?? []) {
-            const inv = v.inventory_items?.[0]
-            const invId = inv?.inventory_item_id ?? inv?.id
-            if (invId) variantToInvItem.set(v.id, invId)
-          }
-
-          if (variantToInvItem.size) {
-            const invItemIds = [...variantToInvItem.values()]
-            const levels = await inventoryModule.listInventoryLevels({ inventory_item_id: invItemIds })
-            const levelMap = new Map<string, any>()
-            for (const l of levels as any[]) {
-              const prev = levelMap.get(l.inventory_item_id)
-              if (!prev || (l.stocked_quantity ?? 0) > (prev.stocked_quantity ?? 0)) {
-                levelMap.set(l.inventory_item_id, l)
-              }
-            }
-
-            const reservationInputs: { inventory_item_id: string; location_id: string; quantity: number; line_item_id?: string }[] = []
-            for (const item of (orderWithItems as any).items ?? []) {
-              if (!item.variant_id) continue
-              const qty = pickedQtys[item.id] ?? item.quantity
-              if (qty <= 0) continue
-              const invId = variantToInvItem.get(item.variant_id)
-              if (!invId) continue
-              const level = levelMap.get(invId)
-              if (!level) continue
-              reservationInputs.push({
-                inventory_item_id: invId,
-                location_id: level.location_id,
-                quantity: qty,
-                line_item_id: item.id,
-              })
-            }
-
-            if (reservationInputs.length) {
-              const reservations = await inventoryModule.createReservationItems(reservationInputs as any)
-              merged.reservation_ids = (reservations as any[]).map((r) => r.id)
-            }
-          }
-        }
-      } catch {
-        // Non-fatal: order metadata still saved
-      }
-    }
-
     await orderModule.updateOrders(id, { metadata: merged })
   }
 
@@ -264,22 +298,25 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     const completeMeta = (orderForComplete as any).metadata ?? {}
 
     if (!completeMeta.stock_deducted) {
-      // Delete reservations created at picking time
-      const reservationIds = (completeMeta.reservation_ids as string[]) ?? []
-      if (reservationIds.length) {
+      const inventoryModule = req.scope.resolve(Modules.INVENTORY)
+      const lineItemIds = ((orderForComplete as any).items ?? []).map((i: any) => i.id).filter(Boolean)
+
+      // Delete all reservations linked to this order's line items
+      if (lineItemIds.length) {
         try {
-          const inventoryModule = req.scope.resolve(Modules.INVENTORY)
-          await inventoryModule.deleteReservationItems(reservationIds)
+          const reservations = await inventoryModule.listReservationItems({ line_item_id: lineItemIds })
+          if (reservations.length) {
+            await inventoryModule.deleteReservationItems((reservations as any[]).map((r) => r.id))
+          }
         } catch { /* non-fatal */ }
       }
 
-      // Deduct stocked_quantity for picked amounts
-      const pickedQtys = (completeMeta.picked_quantities ?? {}) as Record<string, number>
+      // Deduct stocked_quantity for actual (picked = current line item) quantities
       await deductVariantStock(
         req.scope,
         ((orderForComplete as any).items ?? []).map((i: any) => ({
           variant_id: i.variant_id ?? null,
-          quantity: pickedQtys[i.id] ?? i.quantity,
+          quantity: i.quantity,
         }))
       )
       await orderModule.updateOrders(id, {
@@ -290,10 +327,40 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   }
 
   if (cancel) {
+    const orderForCancel = await orderModule.retrieveOrder(id, { relations: ["items"] })
+    const cancelMeta = (orderForCancel as any).metadata ?? {}
+
+    // Cancel order — force-set status if already completed (sell mode)
     try {
       await orderModule.cancelOrder(id)
-    } catch (e: any) {
-      return res.status(400).json({ message: e?.message ?? "Cannot cancel this order" })
+    } catch {
+      await orderModule.updateOrders(id, { status: "canceled" } as any)
+    }
+
+    // Return stock if it was deducted (sell mode cancellation)
+    if (cancelMeta.stock_deducted && !cancelMeta.stock_returned) {
+      await returnVariantStock(
+        req.scope,
+        ((orderForCancel as any).items ?? []).map((i: any) => ({
+          variant_id: i.variant_id ?? null,
+          quantity: i.quantity,
+        }))
+      )
+      await orderModule.updateOrders(id, { metadata: { ...cancelMeta, stock_returned: true } })
+    }
+
+    // Release inventory reservations (order mode — stock not yet deducted)
+    if (!cancelMeta.stock_deducted) {
+      try {
+        const inventoryModule = req.scope.resolve(Modules.INVENTORY)
+        const lineItemIds = ((orderForCancel as any).items ?? []).map((i: any) => i.id).filter(Boolean)
+        if (lineItemIds.length) {
+          const reservations = await inventoryModule.listReservationItems({ line_item_id: lineItemIds })
+          if (reservations.length) {
+            await inventoryModule.deleteReservationItems((reservations as any[]).map((r) => r.id))
+          }
+        }
+      } catch { /* non-fatal */ }
     }
   }
 
@@ -305,14 +372,36 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     try {
       const { data: orders } = await (query.graph({
         entity: "order",
-        fields: ["id", "total", "payment_collections.id", "payment_collections.status"],
+        fields: ["id", "total", "payment_collections.id", "payment_collections.status", "payment_collections.payments.id", "payment_collections.payments.amount"],
         filters: { id },
-      }) as Promise<{ data: { id: string; total?: number; payment_collections?: { id: string; status: string }[] }[] }>)
+      }) as Promise<{ data: { id: string; total?: number; payment_collections?: { id: string; status: string; payments?: { id: string; amount?: number }[] }[] }[] }>)
 
       const orderData = orders?.[0]
       const existingCollection = orderData?.payment_collections?.find((pc) => pc.status !== "canceled")
 
-      if (existingCollection) {
+      if (existingCollection?.status === "captured") {
+        // Already paid — idempotent, nothing to do
+      } else if (existingCollection?.status === "authorized") {
+        // Storefront payment authorized by provider — capture it
+        const authorizedAmount = (existingCollection.payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0)
+        const paymentIds = (existingCollection.payments ?? []).map((p) => p.id).filter(Boolean)
+        for (const paymentId of paymentIds) {
+          await capturePaymentWorkflow(req.scope).run({ input: { payment_id: paymentId } })
+        }
+        // If order total exceeds captured amount (manager changed qty), cover remainder as manual payment
+        const orderForTotal = await orderModule.retrieveOrder(id, { select: ["id", "total"] })
+        const orderTotal = (orderForTotal as any).total ?? 0
+        const remainder = orderTotal - authorizedAmount
+        if (remainder > 0) {
+          const { result: remainingCols } = await createOrderPaymentCollectionWorkflow(req.scope).run({
+            input: { order_id: id, amount: remainder },
+          })
+          await markPaymentCollectionAsPaid(req.scope).run({
+            input: { order_id: id, payment_collection_id: remainingCols[0].id },
+          })
+        }
+      } else if (existingCollection) {
+        // Manual/cash payment — mark collection as paid directly
         await markPaymentCollectionAsPaid(req.scope).run({
           input: { order_id: id, payment_collection_id: existingCollection.id },
         })

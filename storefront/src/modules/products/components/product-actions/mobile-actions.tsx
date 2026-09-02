@@ -52,6 +52,17 @@ const MobileActions: React.FC<MobileActionsProps> = ({
 
   const isSimple = isSimpleProduct(product)
 
+  const variantLabel = useMemo(() => {
+    if (!variant) return null
+    const entries = (product.options ?? [])
+      .map((opt) => {
+        const val = options[opt.id]
+        return val ? `${opt.title}: ${val}` : null
+      })
+      .filter(Boolean)
+    return entries.length > 0 ? entries.join(" / ") : null
+  }, [variant, options, product.options])
+
   return (
     <>
       <div
@@ -74,7 +85,7 @@ const MobileActions: React.FC<MobileActionsProps> = ({
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
             data-testid="mobile-actions"
           >
-            <div className="flex items-center gap-x-2">
+            <div className="flex items-center gap-x-2 flex-wrap justify-center">
               <span data-testid="mobile-title">{product.title}</span>
               <span>—</span>
               {selectedPrice ? (
@@ -99,6 +110,11 @@ const MobileActions: React.FC<MobileActionsProps> = ({
                 <div></div>
               )}
             </div>
+            {variantLabel && (
+              <span className="text-sm text-ui-fg-subtle w-full text-center -mt-1">
+                {variantLabel}
+              </span>
+            )}
             <div className={clx("grid grid-cols-2 w-full gap-x-4", {
               "!grid-cols-1": isSimple
             })}>
@@ -110,9 +126,7 @@ const MobileActions: React.FC<MobileActionsProps> = ({
               >
                 <div className="flex items-center justify-between w-full">
                   <span>
-                    {variant
-                      ? Object.values(options).join(" / ")
-                      : "Параметры"}
+                    {variant ? (variantLabel ?? "Выбрано") : "Выбрать вариант"}
                   </span>
                   <ChevronDown />
                 </div>

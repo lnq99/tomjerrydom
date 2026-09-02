@@ -4,8 +4,7 @@ import { selectTier, type Tier } from "@lib/data/tiers"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
 
-function formatK(kopecks: number): string {
-  const rubles = kopecks / 100
+function formatK(rubles: number): string {
   if (rubles >= 1000) {
     const k = rubles / 1000
     const rounded = Math.round(k * 10) / 10
@@ -16,8 +15,8 @@ function formatK(kopecks: number): string {
 
 function formatShortTier(tier: Tier): string {
   if (tier.min_order_amount === 0) return tier.label
-  const k = Math.round(tier.min_order_amount / 100 / 1000)
-  const amount = k > 0 ? `${k}к` : `${Math.round(tier.min_order_amount / 100)}₽`
+  const k = Math.round(tier.min_order_amount / 1000)
+  const amount = k > 0 ? `${k}к` : `${Math.round(tier.min_order_amount)}₽`
   const firstWord = tier.label.split(/\s+/)[0]
   return `${firstWord} ${amount}`
 }

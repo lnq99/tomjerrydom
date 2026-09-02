@@ -8,7 +8,7 @@ export type Tier = {
   id: string
   label: string
   description: string
-  /** kopecks */
+  /** whole rubles */
   min_order_amount: number
   sort_order: number
 }
@@ -16,9 +16,9 @@ export type Tier = {
 export type TierTotal = {
   id: string
   label: string
-  /** kopecks */
+  /** whole rubles */
   min_order_amount: number
-  /** kopecks — item subtotal only */
+  /** whole rubles — item subtotal only */
   subtotal: number
 }
 
@@ -94,19 +94,21 @@ export async function getCurrentTier(tiers: Tier[]): Promise<Tier> {
 
 /**
  * Fetch tier-adjusted prices for the given products.
- * Returns a map of variantId → price in kopecks.
+ * Returns a map of variantId → price in whole rubles (cost × margin).
  * Always computed from product cost + tier profit margins, for all tiers including retail.
  * Returns {} when products have no cost metadata.
+ * Defaults to "retail" when tierId is not set (no cookie on first visit).
  */
 export async function getTierProductPrices(
-  tierId: string,
+  tierId: string | undefined | null,
   productIds: string[]
 ): Promise<Record<string, number>> {
   if (productIds.length === 0) return {}
+  const effectiveTierId = tierId || "retail"
   try {
     const BASE = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000"
     const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ""
-    const params = new URLSearchParams({ tier_id: tierId })
+    const params = new URLSearchParams({ tier_id: effectiveTierId })
     productIds.forEach((id) => params.append("product_ids[]", id))
     const res = await fetch(`${BASE}/store/tiers/product-prices?${params.toString()}`, {
       headers: { "x-publishable-api-key": PUB_KEY },

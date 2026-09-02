@@ -30,6 +30,11 @@ type PickState = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Original ordered quantity — preserved in metadata on first pick save. */
+function origQty(item: OrderDetailItem): number {
+  return (item.metadata?.original_quantity as number) ?? item.quantity
+}
+
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" | "outline" }> = {
   completed:      { label: "Hoàn thành",    variant: "success" },
   pending:        { label: "Đang xử lý",     variant: "warning" },
@@ -89,11 +94,11 @@ export default function OrderDetailPage() {
 
   const isReadOnly = order.status === "completed" || order.status === "canceled"
 
-  const hasMissing = order.items.some((i) => (ps.picked[i.id] ?? i.quantity) < i.quantity)
+  const hasMissing = order.items.some((i) => (ps.picked[i.id] ?? origQty(i)) < origQty(i))
 
-  const beforeTotal = order.items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  const beforeTotal = order.items.reduce((s, i) => s + i.unit_price * origQty(i), 0)
   const afterTotal =
-    order.items.reduce((s, i) => s + (ps.prices[i.id] ?? i.unit_price) * (ps.picked[i.id] ?? i.quantity), 0) +
+    order.items.reduce((s, i) => s + (ps.prices[i.id] ?? i.unit_price) * (ps.picked[i.id] ?? origQty(i)), 0) +
     ps.extras.reduce((s, g) => s + g.unit_price * g.quantity, 0)
 
   function setPicked(itemId: string, qty: number) {
@@ -124,7 +129,12 @@ export default function OrderDetailPage() {
           ...order.items.map((item) => ({
             action: "update" as const,
             id: item.id,
+            quantity: ps.picked[item.id] ?? origQty(item),
             unit_price: ps.prices[item.id] ?? item.unit_price,
+            metadata: {
+              ...item.metadata,
+              original_quantity: origQty(item),
+            },
           })),
           ...ps.extras.map((g) => ({
             action: "add" as const,
@@ -203,7 +213,7 @@ export default function OrderDetailPage() {
       const items = order.items.map((i) => ({
         variantId: i.variant_id ?? undefined,
         title: i.title,
-        quantity: i.quantity,
+        quantity: origQty(i),
         unitPrice: i.unit_price,
         costPrice: i.cost_price,
       }))
@@ -353,12 +363,13 @@ export default function OrderDetailPage() {
           </div>
           <div className="space-y-2">
             {order.items.map((item) => {
-              const picked = ps.picked[item.id] ?? item.quantity
-              const isMissing = picked < item.quantity
+              const picked = ps.picked[item.id] ?? origQty(item)
+              const isMissing = picked < origQty(item)
               return (
                 <ItemPickRow
                   key={item.id}
                   item={item}
+                  ordered={origQty(item)}
                   picked={picked}
                   flash={flashMissing && isMissing}
                   readOnly={isReadOnly}
@@ -731,12 +742,14 @@ function CustomerSection({
 
 function ItemPickRow({
   item,
+  ordered,
   picked,
   flash,
   readOnly,
   onPick,
 }: {
   item: OrderDetailItem
+  ordered: number
   picked: number
   flash: boolean
   readOnly: boolean
@@ -746,7 +759,7 @@ function ItemPickRow({
     <div
       className={cn(
         "flex items-center gap-3 rounded-lg border p-3 transition-colors",
-        flash && picked < item.quantity && "border-destructive bg-destructive/5 animate-pulse"
+        flash && picked < ordered && "border-destructive bg-destructive/5 animate-pulse"
       )}
     >
       {/* Thumbnail */}
@@ -771,7 +784,7 @@ function ItemPickRow({
       ) : (
         <QtyControl
           value={picked}
-          ordered={item.quantity}
+          ordered={ordered}
           onChange={onPick}
           min={0}
         />
@@ -845,12 +858,13 @@ function ReviewView({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {order.items.map((item) => {
-          const picked = ps.picked[item.id] ?? item.quantity
+          const orderedQty = origQty(item)
+          const picked = ps.picked[item.id] ?? orderedQty
           const price = ps.prices[item.id] ?? item.unit_price
-          const qtyChanged = picked !== item.quantity
+          const qtyChanged = picked !== orderedQty
           const priceChanged = price !== item.unit_price
-          const isMissing = picked < item.quantity
-          const isExtra = picked > item.quantity
+          const isMissing = picked < orderedQty
+          const isExtra = picked > orderedQty
 
           return (
             <div
@@ -873,7 +887,7 @@ function ReviewView({
                   <div className="flex items-center gap-2 text-xs mt-0.5">
                     {qtyChanged ? (
                       <>
-                        <span className="line-through text-muted-foreground">× {item.quantity}</span>
+                        <span className="line-through text-muted-foreground">× {orderedQty}</span>
                         <span className={cn("font-semibold", isMissing ? "text-destructive" : isExtra ? "text-green-600" : "")}>
                           → {picked}
                         </span>

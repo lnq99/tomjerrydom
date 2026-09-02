@@ -43,7 +43,7 @@ export async function POST(
       .map((pl) => ({
         id: deriveTierKey(pl.metadata as Record<string, unknown>),
         label: (pl.metadata?.label as string) ?? pl.title,
-        min_order_amount: ((pl.metadata?.min_order_amount as number) ?? 0) * 100,
+        min_order_amount: (pl.metadata?.min_order_amount as number) ?? 0,
         sort_order: (pl.metadata?.sort_order as number) ?? 99,
         priceListId: pl.id,
       }))

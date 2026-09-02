@@ -3,12 +3,12 @@
 import { selectTier, type Tier, type TierTotal } from "@lib/data/tiers"
 import { useTransition } from "react"
 
-function formatRub(kopecks: number) {
+function formatRub(amount: number) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: "RUB",
     maximumFractionDigits: 0,
-  }).format(kopecks / 100)
+  }).format(amount)
 }
 
 type Props = {

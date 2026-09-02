@@ -29,6 +29,7 @@ const ORDER_STATUS_LABEL: Record<string, { label: string; color: string }> = {
 
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
   awaiting:           "Ожидает оплаты",
+  authorized:         "Ожидает оплаты",
   captured:           "Оплачен",
   not_paid:           "Не оплачен",
   refunded:           "Возвращён",
@@ -78,10 +79,14 @@ type SafeOrder = {
 
 async function fetchOrderStatus(id: string, sig: string): Promise<SafeOrder | null> {
   const backendUrl = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000"
+  const publishableKey = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ""
   try {
     const res = await fetch(
       `${backendUrl}/store/order-status/${id}?sig=${encodeURIComponent(sig)}`,
-      { cache: "no-store" }
+      {
+        cache: "no-store",
+        headers: { "x-publishable-api-key": publishableKey },
+      }
     )
     if (!res.ok) return null
     const { order } = await res.json()

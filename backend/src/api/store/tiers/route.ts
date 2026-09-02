@@ -6,7 +6,7 @@ export type Tier = {
   id: string
   label: string
   description: string
-  /** minimum cart item subtotal to use this tier, in kopecks */
+  /** minimum cart item subtotal to use this tier, in whole rubles */
   min_order_amount: number
   sort_order: number
 }
@@ -33,8 +33,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       id: deriveTierKey(pl.metadata as Record<string, unknown>),
       label: (pl.metadata?.label as string) ?? pl.title,
       description: (pl.metadata?.description as string) ?? "",
-      // metadata stores rubles; multiply ×100 for kopecks to match Medusa cart amounts
-      min_order_amount: ((pl.metadata?.min_order_amount as number) ?? 0) * 100,
+      min_order_amount: (pl.metadata?.min_order_amount as number) ?? 0,
       sort_order: (pl.metadata?.sort_order as number) ?? 99,
     }))
     .sort((a, b) => a.sort_order - b.sort_order)

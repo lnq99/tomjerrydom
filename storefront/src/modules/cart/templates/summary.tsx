@@ -10,12 +10,12 @@ import TierSwitcher from "@modules/tiers/components/tier-switcher"
 import { HttpTypes } from "@medusajs/types"
 import { selectTier, type Tier, type TierTotal } from "@lib/data/tiers"
 
-function formatRub(kopecks: number) {
+function formatRub(amount: number) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: "RUB",
     maximumFractionDigits: 0,
-  }).format(kopecks / 100)
+  }).format(amount)
 }
 
 type SummaryProps = {

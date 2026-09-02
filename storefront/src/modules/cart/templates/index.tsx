@@ -27,10 +27,8 @@ const CartTemplate = async ({
   if (cart?.id) {
     ;[tiers, currentTierId] = await Promise.all([listTiers(), getTierId()])
 
-    // Re-sync line item prices with the active tier on every cart load
-    if (currentTierId !== "retail") {
-      await applyTier(cart.id, currentTierId)
-    }
+    // Re-sync line item prices with the active tier on every cart load (including retail)
+    await applyTier(cart.id, currentTierId)
 
     tierTotals = await getCartTierTotals(cart.id)
   }

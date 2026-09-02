@@ -22,6 +22,61 @@ type CreatePosOrderBody = {
   mode?: "sell" | "order"
 }
 
+/** Reserve inventory for pending order-mode POS orders using the inventory module directly. */
+export async function reserveInventoryForOrder(
+  scope: MedusaRequest["scope"],
+  lineItems: { id: string; variant_id?: string | null; quantity: number }[]
+) {
+  const withVariant = lineItems.filter((i) => i.variant_id && i.quantity > 0)
+  if (!withVariant.length) return
+
+  try {
+    const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+    const inventoryModule = scope.resolve(Modules.INVENTORY)
+
+    const { data: locations } = await (query.graph({
+      entity: "stock_location",
+      fields: ["id"],
+    }) as Promise<{ data: { id: string }[] }>)
+    const locationId = locations?.[0]?.id
+    if (!locationId) return
+
+    const variantIds = withVariant.map((i) => i.variant_id!)
+    const { data: links } = await (query.graph({
+      entity: "product_variant",
+      fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
+      filters: { id: variantIds },
+    }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+
+    const variantToInvItem = new Map<string, string>()
+    for (const v of links ?? []) {
+      const inv = v.inventory_items?.[0]
+      const invId = inv?.inventory_item_id ?? inv?.id
+      if (invId) variantToInvItem.set(v.id, invId)
+    }
+    if (!variantToInvItem.size) return
+
+    const reservations = withVariant
+      .map((item) => {
+        const invId = variantToInvItem.get(item.variant_id!)
+        if (!invId) return null
+        return {
+          inventory_item_id: invId,
+          location_id: locationId,
+          quantity: item.quantity,
+          line_item_id: item.id,
+        }
+      })
+      .filter(Boolean) as { inventory_item_id: string; location_id: string; quantity: number; line_item_id: string }[]
+
+    if (reservations.length) {
+      await inventoryModule.createReservationItems(reservations)
+    }
+  } catch (e) {
+    console.error("[reserveInventoryForOrder] failed:", e)
+  }
+}
+
 /** Deduct stocked_quantity for each item at the first available stock location. Allows negative. */
 async function deductVariantStock(
   scope: MedusaRequest["scope"],
@@ -127,7 +182,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const totalRubles = Math.round(total)
 
-  await orderModule.createOrderLineItems(
+  const lineItems = await orderModule.createOrderLineItems(
     order.id,
     resolvedItems.map((item) => ({
       title: item.variantTitle
@@ -140,6 +195,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       metadata: { cost_price: item.resolvedCost },
     }))
   )
+
+  // For pending orders: reserve inventory via Medusa's reservation workflow
+  // (same mechanism completeCartWorkflow uses internally)
+  if (mode === "order") {
+    await reserveInventoryForOrder(
+      req.scope,
+      (lineItems as any[]).map((li, idx) => ({
+        id: li.id,
+        variant_id: resolvedItems[idx]?.variantId ?? null,
+        quantity: li.quantity,
+      }))
+    )
+  }
 
   // For cash sales: capture payment and deduct stock
   if (mode === "sell") {
