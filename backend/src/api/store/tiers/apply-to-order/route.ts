@@ -11,6 +11,7 @@ type Body = {
  * POST /store/tiers/apply-to-order
  * Re-applies tier pricing to order line items after completeCartWorkflow
  * potentially overwrites them with Medusa catalog prices.
+ * Also syncs the payment collection amount to the corrected order total.
  */
 export async function POST(req: MedusaRequest<Body>, res: MedusaResponse) {
   const { order_id, tier_id = "retail" } = req.body as Body
@@ -21,6 +22,7 @@ export async function POST(req: MedusaRequest<Body>, res: MedusaResponse) {
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const orderModule = req.scope.resolve(Modules.ORDER)
+  const paymentModule = req.scope.resolve(Modules.PAYMENT) as any
 
   // Load order line items with variant info
   const order = await orderModule.retrieveOrder(order_id, { relations: ["items"] })
@@ -40,23 +42,64 @@ export async function POST(req: MedusaRequest<Body>, res: MedusaResponse) {
 
   const variantMap = new Map(variants.map((v) => [v.id, v]))
 
-  let updated = 0
+  // Build price corrections and compute new order total
+  type PriceUpdate = { id: string; unit_price: number }
+  const priceUpdates: PriceUpdate[] = []
+  let newTotal = 0
+
   for (const item of items) {
     const variant = variantMap.get(item.variant_id)
-    if (!variant) continue
+    const qty: number = item.quantity ?? 1
+
+    if (!variant) {
+      newTotal += (item.unit_price ?? 0) * qty
+      continue
+    }
 
     const cost = (variant.product?.metadata as any)?.cost as number | undefined
-    if (!cost) continue
+    if (!cost) {
+      newTotal += (item.unit_price ?? 0) * qty
+      continue
+    }
 
     const categories = (variant.product as any)?.categories ?? []
     const profit = getTierProfit(categories, tier_id)
     const tierPrice = calcPrice(cost, profit)
+    newTotal += tierPrice * qty
 
     if (tierPrice !== item.unit_price) {
-      await orderModule.updateOrderLineItems(item.id, { unit_price: tierPrice })
-      updated++
+      priceUpdates.push({ id: item.id, unit_price: tierPrice })
     }
   }
 
-  res.json({ updated })
+  // Apply line item price corrections
+  for (const upd of priceUpdates) {
+    await orderModule.updateOrderLineItems(upd.id, { unit_price: upd.unit_price })
+  }
+
+  // Sync payment collection amount to the corrected order total
+  if (priceUpdates.length > 0 && newTotal > 0) {
+    try {
+      const { data: orderData } = await (query.graph({
+        entity: "order",
+        fields: ["payment_collections.id", "payment_collections.status", "payment_collections.amount"],
+        filters: { id: order_id },
+      }) as Promise<{ data: { payment_collections?: { id: string; status: string; amount: number }[] }[] }>)
+
+      const activeCollection = orderData[0]?.payment_collections?.find(
+        (pc) => pc.status !== "canceled" && pc.status !== "captured"
+      )
+
+      if (activeCollection && activeCollection.amount !== newTotal) {
+        await paymentModule.updatePaymentCollections(activeCollection.id, {
+          amount: newTotal,
+        })
+      }
+    } catch (e) {
+      // Payment collection sync is best-effort — line items are already corrected
+      console.error("apply-to-order: failed to sync payment collection amount:", e)
+    }
+  }
+
+  res.json({ updated: priceUpdates.length })
 }
