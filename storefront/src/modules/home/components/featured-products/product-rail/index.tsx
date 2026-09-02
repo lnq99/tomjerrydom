@@ -1,8 +1,6 @@
 import { listProducts } from "@lib/data/products"
 import { HttpTypes } from "@medusajs/types"
-import { Text } from "@modules/common/components/ui"
-
-import InteractiveLink from "@modules/common/components/interactive-link"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import ProductPreview from "@modules/products/components/product-preview"
 
 export default async function ProductRail({
@@ -19,29 +17,38 @@ export default async function ProductRail({
     queryParams: {
       collection_id: collection.id,
       fields: "*variants.calculated_price",
+      limit: 8,
     },
   })
 
-  if (!pricedProducts) {
+  if (!pricedProducts || pricedProducts.length === 0) {
     return null
   }
 
   return (
-    <div className="content-container py-12 small:py-24">
-      <div className="flex justify-between mb-8">
-        <Text className="txt-xlarge">{collection.title}</Text>
-        <InteractiveLink href={`/collections/${collection.handle}`}>
-          View all
-        </InteractiveLink>
+    <div className="py-8 small:py-14">
+      <div className="content-container flex items-baseline justify-between mb-5">
+        <h2 className="text-xl small:text-2xl font-bold text-ui-fg-base">
+          {collection.title}
+        </h2>
+        <LocalizedClientLink
+          href={`/collections/${collection.handle}`}
+          className="text-sm text-ui-fg-muted hover:text-ui-fg-base transition-colors whitespace-nowrap"
+        >
+          Смотреть все →
+        </LocalizedClientLink>
       </div>
-      <ul className="grid grid-cols-2 small:grid-cols-3 gap-x-6 gap-y-24 small:gap-y-36">
-        {pricedProducts &&
-          pricedProducts.map((product) => (
-            <li key={product.id}>
-              <ProductPreview product={product} region={region} isFeatured />
+
+      {/* Horizontal scroll on mobile, grid on desktop */}
+      <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <ul className="flex gap-4 px-4 small:px-8 small:grid small:grid-cols-4 medium:grid-cols-5 large:grid-cols-6 small:gap-6">
+          {pricedProducts.map((product) => (
+            <li key={product.id} className="shrink-0 w-40 small:w-auto">
+              <ProductPreview product={product} region={region} />
             </li>
           ))}
-      </ul>
+        </ul>
+      </div>
     </div>
   )
 }
