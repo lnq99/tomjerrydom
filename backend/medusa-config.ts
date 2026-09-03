@@ -71,5 +71,8 @@ module.exports = defineConfig({
     {
       resolve: './src/modules/storefront-media',
     },
+    {
+      resolve: './src/modules/product-article',
+    },
   ],
 })

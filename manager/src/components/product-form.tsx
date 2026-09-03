@@ -14,9 +14,11 @@ import {
   uploadFile, listCategories, listStockLocations,
   setInventoryLevel, getVariantStock, getCachedLocationId,
   saveProductCosts,
+  getProductArticle, upsertProductArticle, deleteProductArticle,
   type CreateProductInput,
 } from "@/lib/api"
 import { displayRub, parseRubles } from "@/lib/utils"
+import { ArticleEditor } from "@/components/article-editor"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,6 +140,22 @@ export function ProductForm({
   })
 
   const [form, setForm] = useState<FormState>(() => initForm(product))
+  const [articleTitle, setArticleTitle] = useState("")
+  const [articleContent, setArticleContent] = useState("")
+  const [articleExists, setArticleExists] = useState(false)
+
+  const { data: articleData } = useQuery({
+    queryKey: ["product-article", product?.id],
+    queryFn: () => getProductArticle(product!.id),
+    enabled: !!product?.id,
+    staleTime: 30_000,
+  })
+  useEffect(() => {
+    if (!articleData) return
+    setArticleTitle(articleData.article?.title ?? "")
+    setArticleContent(articleData.article?.content ?? "")
+    setArticleExists(!!articleData.article)
+  }, [articleData])
 
   // Once stock loads, populate initial stock values AND inventory item IDs (only once)
   const stockInitialized = useRef(false)
@@ -366,8 +384,19 @@ export function ProductForm({
       }
     }
 
+    // article: upsert if content present, delete if cleared
+    if (articleContent.trim()) {
+      await upsertProductArticle(product.id, {
+        title: articleTitle.trim() || null,
+        content: articleContent,
+      })
+    } else if (articleExists) {
+      await deleteProductArticle(product.id)
+    }
+
     qc.invalidateQueries({ queryKey: ["products"] })
     qc.invalidateQueries({ queryKey: ["product", product.id] })
+    qc.invalidateQueries({ queryKey: ["product-article", product.id] })
     toast.success("Đã lưu")
     router.back()
   }
@@ -645,6 +674,35 @@ export function ProductForm({
                 </div>
               </div>
             </section>
+
+            {/* Article — edit mode only */}
+            {product && (
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Bài viết sản phẩm</h2>
+                <div className="space-y-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Tiêu đề bài viết</label>
+                    <Input
+                      value={articleTitle}
+                      onChange={(e) => setArticleTitle(e.target.value)}
+                      placeholder="Tiêu đề (tùy chọn)"
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Nội dung</label>
+                    <ArticleEditor
+                      content={articleContent}
+                      onChange={setArticleContent}
+                      disabled={disabled}
+                    />
+                    {articleExists && articleContent.trim() === "" && (
+                      <p className="text-xs text-amber-600">Nội dung trống sẽ xóa bài viết hiện tại khi lưu.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
 
             <div className="h-4" />
           </div>

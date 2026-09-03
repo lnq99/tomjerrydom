@@ -482,3 +482,29 @@ export async function reorderMediaItems(
 ): Promise<void> {
   await apiFetch("/admin/storefront-media/reorder", { method: "POST", body: JSON.stringify({ items }) })
 }
+
+// ── Product Articles ──────────────────────────────────────────────────────────
+export type ProductArticle = {
+  id: string
+  product_id: string
+  title: string | null
+  content: string
+}
+
+export async function getProductArticle(productId: string): Promise<{ article: ProductArticle | null }> {
+  return apiFetch(`/admin/product-articles/${productId}`)
+}
+
+export async function upsertProductArticle(
+  productId: string,
+  data: { title?: string | null; content: string }
+): Promise<{ article: ProductArticle }> {
+  return apiFetch(`/admin/product-articles/${productId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteProductArticle(productId: string): Promise<void> {
+  await apiFetch(`/admin/product-articles/${productId}`, { method: "DELETE" })
+}
