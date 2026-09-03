@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Package, Loader2, X, Star, Eye, EyeOff, Wand2 } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Package, Loader2, X, Star, Eye, EyeOff, Wand2, ClipboardList } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import {
@@ -268,6 +268,31 @@ export function ProductForm({
       ...f,
       variants: f.variants.map((v) => (v._key === key ? { ...v, disabled: !v.disabled } : v)),
     }))
+  }
+
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteText, setPasteText] = useState("")
+
+  function parsePasteText(text: string): string[] {
+    return text
+      .split("\n")
+      .map((line) => line.replace(/^[\s]*[\d]+[.)]\s*/, "").replace(/^[\s]*[-•*]\s*/, "").trim())
+      .filter(Boolean)
+  }
+
+  function applyPaste() {
+    const names = parsePasteText(pasteText)
+    if (!names.length) return
+    setForm((f) => {
+      const existingTitles = new Set(f.variants.map((v) => v.title.trim().toLowerCase()))
+      const fresh = names
+        .filter((n) => !existingTitles.has(n.toLowerCase()))
+        .map((n) => ({ _key: makeKey(), title: n, sku: "", stock: "", initialStock: "" }))
+      const base = f.variants.filter((v) => v.title.trim() || v.id)
+      return { ...f, variants: [...base, ...fresh] }
+    })
+    setPasteText("")
+    setPasteOpen(false)
   }
 
   // ── Save ─────────────────────────────────────────────────────
@@ -661,7 +686,7 @@ export function ProductForm({
                   </div>
                 )}
 
-                <div className="border-t">
+                <div className="border-t divide-y">
                   <button
                     type="button"
                     onClick={addVariant}
@@ -671,6 +696,44 @@ export function ProductForm({
                     <Plus className="h-3.5 w-3.5" />
                     Thêm biến thể
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPasteOpen((o) => !o); setPasteText("") }}
+                    disabled={disabled}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Dán danh sách
+                  </button>
+                  {pasteOpen && (
+                    <div className="px-3 py-3 space-y-2 bg-muted/30">
+                      <textarea
+                        autoFocus
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                        placeholder={"1) грейпфрутовый лимонад\n2) лимонный джем\n- flavor name\nplain line"}
+                        rows={5}
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => { setPasteOpen(false); setPasteText("") }}
+                          className="px-3 py-1.5 text-xs rounded border hover:bg-accent transition-colors"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={applyPaste}
+                          disabled={!pasteText.trim()}
+                          className="px-3 py-1.5 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                        >
+                          Thêm ({parsePasteText(pasteText).length})
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
