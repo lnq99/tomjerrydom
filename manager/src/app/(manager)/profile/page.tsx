@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
-import { QrCode, Phone, User } from "lucide-react"
+import { QrCode, Phone, User, Upload, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { getBankingDetails, saveBankingDetails } from "@/lib/banking-details"
@@ -11,6 +11,7 @@ export default function ProfilePage() {
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [qrUrl, setQrUrl] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const d = getBankingDetails()
@@ -18,6 +19,15 @@ export default function ProfilePage() {
     setPhone(d.phone)
     setQrUrl(d.qrUrl)
   }, [])
+
+  function handleQrFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setQrUrl(reader.result as string)
+    reader.readAsDataURL(file)
+    e.target.value = ""
+  }
 
   function handleSave() {
     saveBankingDetails({ name, phone, qrUrl })
@@ -65,23 +75,54 @@ export default function ProfilePage() {
           <div className="space-y-1.5">
             <label className="text-sm font-medium flex items-center gap-1.5">
               <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
-              Mã QR (link hình ảnh)
+              Mã QR thanh toán
             </label>
-            <Input
-              placeholder="https://..."
-              value={qrUrl}
-              onChange={(e) => setQrUrl(e.target.value)}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleQrFile}
             />
-            <p className="text-xs text-muted-foreground">
-              Dán link mã QR từ ứng dụng ngân hàng.
-              Tải xuống từ ngân hàng, tải lên media và sao chép URL.
-            </p>
-            {qrUrl && (
-              <img
-                src={qrUrl}
-                alt="QR preview"
-                className="mt-2 h-32 w-32 rounded-lg border object-contain bg-white"
-              />
+            {qrUrl ? (
+              <div className="flex items-start gap-3">
+                <img
+                  src={qrUrl}
+                  alt="QR preview"
+                  className="h-32 w-32 rounded-lg border object-contain bg-white shrink-0"
+                />
+                <div className="flex flex-col gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    Đổi ảnh
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setQrUrl("")}
+                  >
+                    <X className="h-3.5 w-3.5 mr-1.5" />
+                    Xóa
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed border-border py-8 text-muted-foreground hover:bg-accent transition-colors"
+              >
+                <Upload className="h-6 w-6" />
+                <span className="text-sm">Tải lên ảnh QR</span>
+                <span className="text-xs">PNG, JPG từ ứng dụng ngân hàng</span>
+              </button>
             )}
           </div>
 
