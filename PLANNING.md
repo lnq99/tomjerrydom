@@ -63,6 +63,43 @@ Architecture and build roadmap for TomJerryDom — a Medusa v2 e-commerce platfo
 
 ---
 
+## Manager App — Feature Backlog
+
+### TODO: Grouped variant editor (2-level tree)
+
+**Goal:** Replace the current flat variant list with a 2-level grouped structure where price is set per group and qty per leaf.
+
+**UI spec:**
+- Multiple groups → each group shows a header row with: group label input + price input (₽). Leaves listed below, indented, each with: title input + qty input.
+- Single group → no header shown. Just price at top, flat leaf list below.
+- Group labels and leaf titles are free-text (generic — works for any product type, not just eliquids).
+
+**Example (multi-group):**
+```
+3mg  ₽200
+  Манго      qty: 10
+  Клубника   qty: 5
+6mg  ₽300
+  Манго      qty: 8
+```
+
+**Example (single group):**
+```
+₽200
+Манго      qty: 10
+Клубника   qty: 5
+```
+
+**Medusa mapping:**
+- 2 product options: "Option 1" (group axis) + "Option 2" (leaf axis) — generic names, hidden from manager UI.
+- Each leaf = one variant. Variant price = its group's price.
+- Single-group product: still uses 2 options in Medusa (consistent structure).
+- Load existing 1-option products (old flat format) as a single group with empty label.
+
+**Future sub-task:** Add a dropdown for axis names (Крепость, Вкус, Цвет, Размер, Объём, Тип, etc.) with "Other" → free-text fallback. Decide whether to expose axis names in the UI at all. Currently deferred — not enough product variety to decide.
+
+---
+
 ## Open Decisions
 
 | # | Decision | Status | Notes |
