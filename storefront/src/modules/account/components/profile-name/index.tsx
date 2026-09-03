@@ -2,6 +2,7 @@
 
 import React, { useEffect, useActionState } from "react";
 
+import { t } from "@lib/i18n"
 import Input from "@modules/common/components/input"
 
 import AccountInfo from "../account-info"
@@ -48,7 +49,7 @@ const ProfileName: React.FC<MyInformationProps> = ({ customer }) => {
   return (
     <form action={formAction} className="w-full overflow-visible">
       <AccountInfo
-        label="Name"
+        label={t("profile_name_label")}
         currentInfo={`${customer.first_name} ${customer.last_name}`}
         isSuccess={successState}
         isError={!!state?.error}
@@ -57,14 +58,14 @@ const ProfileName: React.FC<MyInformationProps> = ({ customer }) => {
       >
         <div className="grid grid-cols-2 gap-x-4">
           <Input
-            label="First name"
+            label={t("first_name")}
             name="first_name"
             required
             defaultValue={customer.first_name ?? ""}
             data-testid="first-name-input"
           />
           <Input
-            label="Last name"
+            label={t("last_name")}
             name="last_name"
             required
             defaultValue={customer.last_name ?? ""}

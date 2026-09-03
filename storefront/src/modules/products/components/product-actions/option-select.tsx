@@ -26,7 +26,7 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
   return (
     <div className="flex flex-col gap-y-3">
       <span className="text-sm font-medium text-ui-fg-base">
-        {title || "Option"}
+        {title || "Вариант"}
         {current && (
           <span className="ml-2 font-normal text-ui-fg-subtle">— {current}</span>
         )}

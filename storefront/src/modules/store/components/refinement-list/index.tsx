@@ -262,7 +262,7 @@ const RefinementList = ({
   const hasActiveFilters = totalActiveFilters > 0
 
   return (
-    <div className="small:min-w-[250px] small:ml-[1.675rem]">
+    <div className="small:min-w-[250px]">
       {/* Mobile: single toolbar row */}
       <div className="small:hidden flex items-center gap-2 mb-3">
         <button

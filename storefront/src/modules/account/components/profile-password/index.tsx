@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { t } from "@lib/i18n"
 import Input from "@modules/common/components/input"
 import AccountInfo from "../account-info"
 import { HttpTypes } from "@medusajs/types"
@@ -30,9 +31,9 @@ const ProfilePassword: React.FC<MyInformationProps> = ({ customer: _customer }) 
       className="w-full"
     >
       <AccountInfo
-        label="Password"
+        label={t("password_label")}
         currentInfo={
-          <span>The password is not shown for security reasons</span>
+          <span>{t("password_hidden")}</span>
         }
         isSuccess={successState}
         isError={false}
@@ -42,21 +43,21 @@ const ProfilePassword: React.FC<MyInformationProps> = ({ customer: _customer }) 
       >
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Old password"
+            label={t("old_password")}
             name="old_password"
             required
             type="password"
             data-testid="old-password-input"
           />
           <Input
-            label="New password"
+            label={t("new_password")}
             type="password"
             name="new_password"
             required
             data-testid="new-password-input"
           />
           <Input
-            label="Confirm password"
+            label={t("confirm_password")}
             type="password"
             name="confirm_password"
             required

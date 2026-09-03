@@ -59,7 +59,7 @@ const StoreTemplate = async ({
 
   return (
     <div
-      className="flex flex-col small:flex-row small:items-start py-6 content-container"
+      className="flex flex-col small:flex-row small:items-start small:gap-8 py-6 content-container"
       data-testid="category-container"
     >
       <RefinementList

@@ -1,5 +1,6 @@
 "use client"
 
+import { t } from "@lib/i18n"
 import { isManual, isStripeLike } from "@lib/constants"
 import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
@@ -40,7 +41,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
         <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
       )
     default:
-      return <Button disabled>Select a payment method</Button>
+      return <Button disabled>{t("select_payment_method")}</Button>
   }
 }
 
@@ -141,7 +142,7 @@ const StripePaymentButton = ({
         isLoading={submitting}
         data-testid={dataTestId}
       >
-        Place order
+        {t("place_order")}
       </Button>
       <ErrorMessage
         error={errorMessage}
@@ -180,7 +181,7 @@ const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
         size="large"
         data-testid="submit-order-button"
       >
-        Place order
+        {t("place_order")}
       </Button>
       <ErrorMessage
         error={errorMessage}
