@@ -1,29 +1,12 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { deriveTierKey, DEFAULT_TIER_PROFIT, calcPrice } from "../../store/tiers/_shared"
+import { DEFAULT_TIER_PROFIT, calcPrice } from "../../store/tiers/_shared"
+import { TIERS } from "../../../data/tiersConfig"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const pricingService = req.scope.resolve(Modules.PRICING)
 
-  // Load tiers from price lists
-  const priceLists = await pricingService.listPriceLists(
-    { status: ["active"] },
-    { select: ["id", "title", "metadata"] }
-  )
-
-  const tiers = [
-    { id: "retail", label: "Розница", min_order_amount: 0, sort_order: 0 },
-    ...priceLists
-      .filter((pl) => pl.metadata?.is_tier === true)
-      .map((pl) => ({
-        id: deriveTierKey(pl.metadata as Record<string, unknown>),
-        label: (pl.metadata?.label as string) ?? pl.title,
-        min_order_amount: ((pl.metadata?.min_order_amount as number) ?? 0) * 100,
-        sort_order: (pl.metadata?.sort_order as number) ?? 99,
-      }))
-      .sort((a, b) => a.sort_order - b.sort_order),
-  ]
+  const tiers = TIERS.map((t) => ({ id: t.id, label: t.label, min_order_amount: t.min_order_amount, sort_order: t.sort_order }))
 
   // Load categories with tier_profit metadata
   const { data: categories } = await query.graph({

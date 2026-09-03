@@ -1,7 +1,6 @@
 import { listProductsWithSort } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
-import { getTierId } from "@lib/data/cookies"
-import { getTierProductPrices } from "@lib/data/tiers"
+import { getAllTierProductPrices } from "@lib/data/tiers"
 import { OptionValueIds } from "@lib/util/product-option-filters"
 import { applyTierPrices, hasSellingPrice } from "@lib/util/tier-prices"
 import { HttpTypes } from "@medusajs/types"
@@ -72,17 +71,14 @@ export default async function PaginatedProducts({
     queryParams["order"] = "created_at"
   }
 
-  const [region, tierId] = await Promise.all([
-    getRegion(countryCode),
-    getTierId(),
-  ])
+  const region = await getRegion(countryCode)
 
   if (!region) {
     return null
   }
 
   const {
-    response: { products, count },
+    response: { products },
   } = await listProductsWithSort({
     page,
     queryParams,
@@ -92,15 +88,29 @@ export default async function PaginatedProducts({
   })
 
   const productIds = products.map((p) => p.id).filter(Boolean) as string[]
-  const tierPrices = await getTierProductPrices(tierId, productIds)
-  const pricedProducts = applyTierPrices(products, tierPrices).filter(hasSellingPrice)
+  const allTierPricesMap = await getAllTierProductPrices(productIds)
+
+  // Use retail tier for visibility filtering (products with no cost are hidden for all tiers)
+  const retailPrices = allTierPricesMap["retail"] ?? {}
+  const pricedProducts = applyTierPrices(products, retailPrices).filter(hasSellingPrice)
+
+  // Pre-compute cheapest variant price per tier per product for client-side instant switching
+  const productTierPricesMap = new Map<string, Record<string, number>>()
+  for (const product of pricedProducts) {
+    if (!product.id) continue
+    const variantIds = (product.variants ?? []).map((v) => v.id).filter(Boolean) as string[]
+    const tierPrices: Record<string, number> = {}
+    for (const [tierId, variantPriceMap] of Object.entries(allTierPricesMap)) {
+      const prices = variantIds.map((vid) => variantPriceMap[vid]).filter((p) => p > 0)
+      if (prices.length > 0) tierPrices[tierId] = Math.min(...prices)
+    }
+    productTierPricesMap.set(product.id, tierPrices)
+  }
 
   const filtered = searchQuery
     ? pricedProducts.filter((p) => matchesSearch(p, searchQuery))
     : pricedProducts
 
-  // Use the post-tier-filter count so pagination reflects what's actually visible.
-  // count (from Medusa) doesn't account for tier-price filtering that hides products.
   const totalPages = Math.ceil(pricedProducts.length / PRODUCT_LIMIT)
 
   if (filtered.length === 0) {
@@ -126,7 +136,12 @@ export default async function PaginatedProducts({
         {filtered.map((p) => {
           return (
             <li key={p.id}>
-              <ProductPreview product={p} region={region} listView={isList} />
+              <ProductPreview
+                product={p}
+                region={region}
+                listView={isList}
+                tierPrices={p.id ? productTierPricesMap.get(p.id) : undefined}
+              />
             </li>
           )
         })}

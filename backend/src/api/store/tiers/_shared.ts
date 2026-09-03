@@ -1,14 +1,8 @@
 export const DEFAULT_TIER_PROFIT: Record<string, number> = {
   retail: 30,
-  wholesale20: 15,
-  wholesale50: 10,
-}
-
-/** Derive a stable tier key from price list metadata */
-export function deriveTierKey(metadata: Record<string, unknown>): string {
-  if (metadata.tier_key) return metadata.tier_key as string
-  const amount = (metadata.min_order_amount as number) ?? 0
-  return `wholesale${Math.floor(amount / 1000)}`
+  small_opt: 15,
+  medium_opt: 10,
+  large_opt: 5,
 }
 
 /** Look up profit % for a tier from category metadata, falling back to defaults */

@@ -93,6 +93,32 @@ export async function getCurrentTier(tiers: Tier[]): Promise<Tier> {
 }
 
 /**
+ * Fetch prices for ALL tiers at once.
+ * Returns { [tierId]: { [variantId]: price } }.
+ * Used to pre-load all tier prices so the client can switch tiers instantly.
+ */
+export async function getAllTierProductPrices(
+  productIds: string[]
+): Promise<Record<string, Record<string, number>>> {
+  if (productIds.length === 0) return {}
+  try {
+    const BASE = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000"
+    const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ""
+    const params = new URLSearchParams()
+    productIds.forEach((id) => params.append("product_ids[]", id))
+    const res = await fetch(`${BASE}/store/tiers/all-product-prices?${params.toString()}`, {
+      headers: { "x-publishable-api-key": PUB_KEY },
+      cache: "no-store",
+    })
+    if (!res.ok) return {}
+    const data = await res.json()
+    return data.prices ?? {}
+  } catch {
+    return {}
+  }
+}
+
+/**
  * Fetch tier-adjusted prices for the given products.
  * Returns a map of variantId → price in whole rubles (cost × margin).
  * Always computed from product cost + tier profit margins, for all tiers including retail.

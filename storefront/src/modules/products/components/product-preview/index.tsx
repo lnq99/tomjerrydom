@@ -4,6 +4,7 @@ import { HttpTypes } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Thumbnail from "../thumbnail"
 import PreviewPrice from "./price"
+import TierPriceDisplay from "./tier-price"
 import QuickAddButton from "../quick-add-button"
 import { VariantChip } from "../variant-chip"
 
@@ -45,12 +46,14 @@ export default async function ProductPreview({
   region: _region,
   listView,
   countryCode = "ru",
+  tierPrices,
 }: {
   product: HttpTypes.StoreProduct
   isFeatured?: boolean
   region: HttpTypes.StoreRegion
   listView?: boolean
   countryCode?: string
+  tierPrices?: Record<string, number>
 }) {
   const { cheapestPrice } = getProductPrice({ product })
   const brand = typeof product.subtitle === "string" && product.subtitle ? product.subtitle : null
@@ -100,7 +103,9 @@ export default async function ProductPreview({
               )}
             </div>
             <div className="flex items-center gap-x-2 shrink-0 pt-0.5">
-              {cheapestPrice && <PreviewPrice price={cheapestPrice} />}
+              {tierPrices
+                ? <TierPriceDisplay tierPrices={tierPrices} />
+                : cheapestPrice && <PreviewPrice price={cheapestPrice} />}
             </div>
           </div>
         </div>
@@ -137,7 +142,9 @@ export default async function ProductPreview({
               {product.title}
             </Text>
             <div className="flex items-center gap-x-2 shrink-0">
-              {cheapestPrice && <PreviewPrice price={cheapestPrice} />}
+              {tierPrices
+                ? <TierPriceDisplay tierPrices={tierPrices} />
+                : cheapestPrice && <PreviewPrice price={cheapestPrice} />}
             </div>
           </div>
           <VariantPills variants={variants} />

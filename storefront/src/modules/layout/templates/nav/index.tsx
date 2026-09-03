@@ -4,10 +4,13 @@ import { listLocales } from "@lib/data/locales"
 import { getLocale } from "@lib/data/locale-actions"
 import { listRegions } from "@lib/data/regions"
 import { listCategories } from "@lib/data/categories"
+import { listTiers } from "@lib/data/tiers"
 import { StoreRegion } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CartButton from "@modules/layout/components/cart-button"
 import MobileSearchToggle from "@modules/layout/components/mobile-search-toggle"
+import NavTierChip from "@modules/layout/components/nav-tier-chip"
+import TierPickerModal from "@modules/layout/components/tier-picker-modal"
 import SearchBox from "@modules/layout/components/search-box"
 import SideMenu from "@modules/layout/components/side-menu"
 import { HttpTypes } from "@medusajs/types"
@@ -56,12 +59,15 @@ function CategoryBar({ categories }: { categories: HttpTypes.StoreProductCategor
 }
 
 export default async function Nav() {
-  const [regions, locales, currentLocale, allCategories] = await Promise.all([
+  const [regions, locales, currentLocale, allCategories, tiers] = await Promise.all([
     listRegions().then((regions: StoreRegion[]) => regions),
     listLocales(),
     getLocale(),
     listCategories({ fields: "id,name,handle,parent_category_id", limit: 50 }),
+    listTiers(),
   ])
+
+  const sortedTiers = [...tiers].sort((a, b) => a.sort_order - b.sort_order)
 
   return (
     <div className="sticky top-0 inset-x-0 z-50 group">
@@ -101,6 +107,7 @@ export default async function Nav() {
                 Аккаунт
               </LocalizedClientLink>
             </div>
+            <NavTierChip tiers={sortedTiers} />
             <MobileSearchToggle />
             <Suspense
               fallback={
@@ -116,6 +123,7 @@ export default async function Nav() {
       </header>
 
       <CategoryBar categories={allCategories} />
+      <TierPickerModal tiers={sortedTiers} />
     </div>
   )
 }

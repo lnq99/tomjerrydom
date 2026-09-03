@@ -1,8 +1,10 @@
 import { Metadata } from "next"
 
 import { listCartOptions, retrieveCart } from "@lib/data/cart"
+import { getTierId } from "@lib/data/cookies"
 import { retrieveCustomer } from "@lib/data/customer"
 import { getBaseURL } from "@lib/util/env"
+import { TierProvider } from "@lib/context/tier-context"
 import { StoreCartShippingOption } from "@medusajs/types"
 import AnnouncementBar from "@modules/layout/components/announcement-bar"
 import CartMismatchBanner from "@modules/layout/components/cart-mismatch-banner"
@@ -15,8 +17,11 @@ export const metadata: Metadata = {
 }
 
 export default async function PageLayout(props: { children: React.ReactNode }) {
-  const customer = await retrieveCustomer()
-  const cart = await retrieveCart()
+  const [customer, cart, tierId] = await Promise.all([
+    retrieveCustomer(),
+    retrieveCart(),
+    getTierId(),
+  ])
   let shippingOptions: StoreCartShippingOption[] = []
 
   if (cart) {
@@ -26,22 +31,24 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col flex-1">
-      <AnnouncementBar />
-      <Nav />
-      {customer && cart && (
-        <CartMismatchBanner customer={customer} cart={cart} />
-      )}
+    <TierProvider initialTierId={tierId ?? "retail"}>
+      <div className="flex flex-col flex-1">
+        <AnnouncementBar />
+        <Nav />
+        {customer && cart && (
+          <CartMismatchBanner customer={customer} cart={cart} />
+        )}
 
-      {cart && (
-        <FreeShippingPriceNudge
-          variant="popup"
-          cart={cart}
-          shippingOptions={shippingOptions}
-        />
-      )}
-      <div className="flex-1">{props.children}</div>
-      <Footer />
-    </div>
+        {cart && (
+          <FreeShippingPriceNudge
+            variant="popup"
+            cart={cart}
+            shippingOptions={shippingOptions}
+          />
+        )}
+        <div className="flex-1">{props.children}</div>
+        <Footer />
+      </div>
+    </TierProvider>
   )
 }
