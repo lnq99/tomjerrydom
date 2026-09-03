@@ -83,6 +83,7 @@ export type AdminProduct = {
   categories: { id: string; name: string }[]
   variants: AdminVariant[]
   images: { id: string; url: string }[]
+  tags: { id: string; value: string }[]
 }
 
 export type AdminVariant = {
@@ -113,7 +114,7 @@ export async function listProducts(params?: {
 
 export async function getProduct(id: string): Promise<{ product: AdminProduct }> {
   return apiFetch(
-    `/admin/products/${id}?fields=id,title,thumbnail,status,metadata,*variants,*variants.inventory_items,*categories,*images`
+    `/admin/products/${id}?fields=id,title,thumbnail,status,metadata,*variants,*variants.inventory_items,*categories,*images,*tags`
   )
 }
 
@@ -147,6 +148,7 @@ export async function updateProduct(
     categories: { id: string }[]
     images: { url: string }[]
     thumbnail: string | null
+    tags: { id?: string; value?: string }[]
   }>
 ): Promise<{ product: AdminProduct }> {
   return apiFetch(`/admin/products/${id}`, { method: "POST", body: JSON.stringify(data) })
@@ -158,6 +160,7 @@ export type CreateProductInput = {
   categories?: { id: string }[]
   images?: { url: string }[]
   thumbnail?: string | null
+  tags?: { value: string }[]
   options?: { title: string; values?: string[] }[]
   variants?: {
     title: string

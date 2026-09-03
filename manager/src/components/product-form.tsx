@@ -43,7 +43,14 @@ type FormState = {
   cost: string           // cost price in rubles (string, for input field)
   images: ImageItem[]
   variants: VariantRow[]
+  tags: string[]         // tag values, e.g. ["new", "hot"]
 }
+
+const PRODUCT_TAGS = [
+  { value: "new", label: "Mới" },
+  { value: "hot", label: "Hot" },
+  { value: "sale", label: "Giảm giá" },
+] as const
 
 function makeKey() {
   return Math.random().toString(36).slice(2)
@@ -86,6 +93,7 @@ function initForm(product?: AdminProduct): FormState {
     images: product?.images?.map((img) => ({ url: img.url })) ?? [],
     variants: product?.variants?.map(variantToRow) ??
       [{ _key: makeKey(), title: "", stock: "", initialStock: "" }],
+    tags: product?.tags?.map((t) => t.value) ?? [],
   }
 }
 
@@ -265,6 +273,13 @@ export function ProductForm({
     }))
   }
 
+  function toggleTag(value: string) {
+    setForm((f) => ({
+      ...f,
+      tags: f.tags.includes(value) ? f.tags.filter((t) => t !== value) : [...f.tags, value],
+    }))
+  }
+
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteText, setPasteText] = useState("")
 
@@ -311,6 +326,7 @@ export function ProductForm({
       categories: form.categoryId ? [{ id: form.categoryId }] : undefined,
       images: form.images.length ? form.images : undefined,
       thumbnail: form.images[0]?.url ?? null,
+      tags: form.tags.length ? form.tags.map((v) => ({ value: v })) : undefined,
       options: activeVariants.length ? [{ title: "Вариант", values: activeVariants.map((v) => v.title.trim()) }] : undefined,
       variants: activeVariants.length
         ? activeVariants.map((v) => ({
@@ -339,6 +355,7 @@ export function ProductForm({
       categories: form.categoryId ? [{ id: form.categoryId }] : [],
       images: form.images.map((img) => ({ url: img.url })),
       thumbnail: form.images[0]?.url ?? null,
+      tags: form.tags.map((v) => ({ value: v })),
     })
 
     if (form.cost) {
@@ -507,6 +524,29 @@ export function ProductForm({
                       min="0"
                       disabled={disabled}
                     />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Nhãn</label>
+                  <div className="flex gap-2">
+                    {PRODUCT_TAGS.map((tag) => {
+                      const active = form.tags.includes(tag.value)
+                      return (
+                        <button
+                          key={tag.value}
+                          type="button"
+                          onClick={() => toggleTag(tag.value)}
+                          disabled={disabled}
+                          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors disabled:opacity-50 ${
+                            active
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-input hover:border-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {tag.label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
