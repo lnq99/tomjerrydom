@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Package, Loader2, X, Star, Eye, EyeOff, Wand2, ClipboardList } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Package, Loader2, X, Star, Eye, EyeOff, ClipboardList } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import {
@@ -28,7 +28,6 @@ type VariantRow = {
   _key: string
   id?: string
   title: string
-  sku: string
   stock: string
   initialStock: string
   inventoryItemId?: string
@@ -50,9 +49,6 @@ function makeKey() {
   return Math.random().toString(36).slice(2)
 }
 
-function generateSku(): string {
-  return Math.random().toString(36).slice(2, 8).toUpperCase()
-}
 
 function flattenCats(
   cats: AdminCategory[],
@@ -73,7 +69,6 @@ function variantToRow(v: AdminProduct["variants"][number]): VariantRow {
     _key: v.id,
     id: v.id,
     title: v.title,
-    sku: v.sku ?? "",
     stock,
     initialStock: stock,
     inventoryItemId,
@@ -90,7 +85,7 @@ function initForm(product?: AdminProduct): FormState {
     cost: displayRub(cost),
     images: product?.images?.map((img) => ({ url: img.url })) ?? [],
     variants: product?.variants?.map(variantToRow) ??
-      [{ _key: makeKey(), title: "", sku: "", stock: "", initialStock: "" }],
+      [{ _key: makeKey(), title: "", stock: "", initialStock: "" }],
   }
 }
 
@@ -244,7 +239,7 @@ export function ProductForm({
       ...f,
       variants: [
         ...f.variants,
-        { _key: makeKey(), title: "", sku: "", stock: "", initialStock: "" },
+        { _key: makeKey(), title: "", stock: "", initialStock: "" },
       ],
     }))
   }
@@ -287,7 +282,7 @@ export function ProductForm({
       const existingTitles = new Set(f.variants.map((v) => v.title.trim().toLowerCase()))
       const fresh = names
         .filter((n) => !existingTitles.has(n.toLowerCase()))
-        .map((n) => ({ _key: makeKey(), title: n, sku: "", stock: "", initialStock: "" }))
+        .map((n) => ({ _key: makeKey(), title: n, stock: "", initialStock: "" }))
       const base = f.variants.filter((v) => v.title.trim() || v.id)
       return { ...f, variants: [...base, ...fresh] }
     })
@@ -320,7 +315,6 @@ export function ProductForm({
       variants: activeVariants.length
         ? activeVariants.map((v) => ({
             title: v.title.trim(),
-            sku: v.sku.trim() || undefined,
             manage_inventory: true,
             prices: [],
             options: { "Вариант": v.title.trim() },
@@ -358,23 +352,16 @@ export function ProductForm({
     await Promise.all(toDelete.map((v) => deleteVariant(product.id, v.id!)))
     const variantFieldsChanged = toUpdate.filter((v) => {
       const orig = product.variants.find((o) => o.id === v.id)
-      return !orig || v.title.trim() !== orig.title || (v.sku.trim() || undefined) !== (orig.sku ?? undefined)
+      return !orig || v.title.trim() !== orig.title
     })
     await Promise.all(
       variantFieldsChanged.map((v) =>
-        updateVariant(product.id, v.id!, {
-          title: v.title.trim(),
-          sku: v.sku.trim() || undefined,
-        })
+        updateVariant(product.id, v.id!, { title: v.title.trim() })
       )
     )
     await Promise.all(
       toCreate.map((v) =>
-        createVariant(product.id, {
-          title: v.title.trim(),
-          sku: v.sku.trim() || undefined,
-          manage_inventory: true,
-        })
+        createVariant(product.id, { title: v.title.trim(), manage_inventory: true })
       )
     )
 
@@ -612,9 +599,8 @@ export function ProductForm({
               </h2>
 
               <div className="border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-[1fr_150px_90px_32px_32px] gap-2 px-3 py-2 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
+                <div className="grid grid-cols-[1fr_90px_32px_32px] gap-2 px-3 py-2 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
                   <span>Tên</span>
-                  <span>Mã SP</span>
                   <span>Tồn kho</span>
                   <span />
                   <span />
@@ -627,7 +613,7 @@ export function ProductForm({
                     {activeVariants.map((v) => (
                       <div
                         key={v._key}
-                        className={`grid grid-cols-[1fr_150px_90px_32px_32px] gap-2 px-3 py-2 items-center ${v.disabled ? "opacity-50" : ""}`}
+                        className={`grid grid-cols-[1fr_90px_32px_32px] gap-2 px-3 py-2 items-center ${v.disabled ? "opacity-50" : ""}`}
                       >
                         <input
                           value={v.title}
@@ -636,25 +622,6 @@ export function ProductForm({
                           disabled={disabled}
                           className={`h-8 w-full rounded border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${v.disabled ? "line-through text-muted-foreground" : ""}`}
                         />
-                        <div className="relative">
-                          <input
-                            value={v.sku}
-                            onChange={(e) => patchVariant(v._key, "sku", e.target.value)}
-                            placeholder="Mã sản phẩm"
-                            disabled={disabled}
-                            className="h-8 w-full rounded border border-input bg-background px-2 pr-7 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                          />
-                          {!v.sku && !disabled && (
-                            <button
-                              type="button"
-                              onClick={() => patchVariant(v._key, "sku", generateSku())}
-                              title="Tự sinh mã SP"
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground transition-colors"
-                            >
-                              <Wand2 className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
                         <input
                           value={v.stock}
                           onChange={(e) => patchVariant(v._key, "stock", e.target.value)}
