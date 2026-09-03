@@ -1,5 +1,7 @@
 import { Suspense } from "react"
 
+import { listCategories } from "@lib/data/categories"
+import { listBrands } from "@lib/data/products"
 import { OptionValueIds } from "@lib/util/product-option-filters"
 import SkeletonProductGrid from "@modules/skeletons/templates/skeleton-product-grid"
 import RefinementList from "@modules/store/components/refinement-list"
@@ -9,13 +11,17 @@ import { SortOptions } from "@modules/store/components/refinement-list/sort-prod
 
 import PaginatedProducts from "./paginated-products"
 
-const StoreTemplate = ({
+const StoreTemplate = async ({
   sortBy,
   page,
   countryCode,
   optionValueIds,
   searchQuery,
   view,
+  brandFilter,
+  categoryIds,
+  minPrice,
+  maxPrice,
 }: {
   sortBy?: SortOptions
   page?: string
@@ -23,9 +29,22 @@ const StoreTemplate = ({
   optionValueIds?: OptionValueIds
   searchQuery?: string
   view?: "grid" | "list"
+  brandFilter?: string[]
+  categoryIds?: string[]
+  minPrice?: number
+  maxPrice?: number
 }) => {
   const pageNumber = page ? parseInt(page) : 1
   const sort = sortBy || "created_at"
+
+  const [allCategories, brands] = await Promise.all([
+    listCategories({ fields: "id,name,handle,parent_category_id", limit: 100 }).catch(
+      () => []
+    ),
+    listBrands(countryCode).catch(() => [] as string[]),
+  ])
+
+  const topCategories = allCategories.filter((cat) => !cat.parent_category_id)
 
   const tierAndView = (
     <>
@@ -43,7 +62,16 @@ const StoreTemplate = ({
       className="flex flex-col small:flex-row small:items-start py-6 content-container"
       data-testid="category-container"
     >
-      <RefinementList sortBy={sort} mobileExtras={tierAndView} />
+      <RefinementList
+        sortBy={sort}
+        mobileExtras={tierAndView}
+        categories={topCategories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          handle: c.handle,
+        }))}
+        brands={brands}
+      />
 
       <div className="w-full">
         {/* Desktop: title + tier + view toggle row */}
@@ -69,6 +97,10 @@ const StoreTemplate = ({
             optionValueIds={optionValueIds}
             searchQuery={searchQuery}
             view={view}
+            brandFilter={brandFilter}
+            categoryIds={categoryIds}
+            minPrice={minPrice}
+            maxPrice={maxPrice}
           />
         </Suspense>
       </div>

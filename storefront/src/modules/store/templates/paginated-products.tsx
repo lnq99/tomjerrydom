@@ -1,8 +1,10 @@
-import { listProductsWithSort } from "@lib/data/products"
+import { listProducts, listProductsWithSort } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
 import { getAllTierProductPrices } from "@lib/data/tiers"
+import { getTierId } from "@lib/data/cookies"
 import { OptionValueIds } from "@lib/util/product-option-filters"
 import { applyTierPrices, hasSellingPrice } from "@lib/util/tier-prices"
+import { sortProducts } from "@lib/util/sort-products"
 import { HttpTypes } from "@medusajs/types"
 import ProductPreview from "@modules/products/components/product-preview"
 import { Pagination } from "@modules/store/components/pagination"
@@ -40,6 +42,10 @@ export default async function PaginatedProducts({
   optionValueIds,
   searchQuery,
   view,
+  brandFilter,
+  categoryIds,
+  minPrice,
+  maxPrice,
 }: {
   sortBy?: SortOptions
   page: number
@@ -50,6 +56,10 @@ export default async function PaginatedProducts({
   optionValueIds?: OptionValueIds
   searchQuery?: string
   view?: "grid" | "list"
+  brandFilter?: string[]
+  categoryIds?: string[]
+  minPrice?: number
+  maxPrice?: number
 }) {
   const queryParams: PaginatedProductsParams = {
     limit: 12,
@@ -59,7 +69,10 @@ export default async function PaginatedProducts({
     queryParams["collection_id"] = [collectionId]
   }
 
-  if (categoryId) {
+  // categoryIds from filter sidebar overrides singular categoryId prop
+  if (categoryIds && categoryIds.length > 0) {
+    queryParams["category_id"] = categoryIds
+  } else if (categoryId) {
     queryParams["category_id"] = [categoryId]
   }
 
@@ -77,22 +90,56 @@ export default async function PaginatedProducts({
     return null
   }
 
-  const {
-    response: { products },
-  } = await listProductsWithSort({
-    page,
-    queryParams,
-    sortBy,
-    countryCode,
-    optionValueIds,
-  })
+  // When post-fetch filters (brand, price, search) are active we need the full
+  // sorted catalogue so we can filter-then-paginate correctly.
+  const hasPostFilters =
+    (brandFilter && brandFilter.length > 0) ||
+    minPrice !== undefined ||
+    maxPrice !== undefined ||
+    !!searchQuery
 
-  const productIds = products.map((p) => p.id).filter(Boolean) as string[]
+  let allSortedProducts: HttpTypes.StoreProduct[]
+  // catalogueCount: total products before post-fetch filtering (used for pagination in no-filter path)
+  let catalogueCount = 0
+
+  if (hasPostFilters) {
+    // Fetch all products (up to 500) sorted, then we paginate ourselves after filtering
+    const optionFilters = Array.from(
+      new Set((optionValueIds || []).filter(Boolean))
+    )
+    const {
+      response: { products },
+    } = await listProducts({
+      pageParam: 1,
+      queryParams: {
+        ...queryParams,
+        ...(optionFilters.length ? { option_value_id: optionFilters } : {}),
+        limit: 500,
+      },
+      countryCode,
+    })
+    allSortedProducts = sortProducts(products, sortBy ?? "created_at")
+  } else {
+    // Normal path — listProductsWithSort handles sorting + pagination
+    const {
+      response: { products, count },
+    } = await listProductsWithSort({
+      page,
+      queryParams,
+      sortBy,
+      countryCode,
+      optionValueIds,
+    })
+    allSortedProducts = products
+    catalogueCount = count
+  }
+
+  const productIds = allSortedProducts.map((p) => p.id).filter(Boolean) as string[]
   const allTierPricesMap = await getAllTierProductPrices(productIds)
 
   // Use retail tier for visibility filtering (products with no cost are hidden for all tiers)
   const retailPrices = allTierPricesMap["retail"] ?? {}
-  const pricedProducts = applyTierPrices(products, retailPrices).filter(hasSellingPrice)
+  const pricedProducts = applyTierPrices(allSortedProducts, retailPrices).filter(hasSellingPrice)
 
   // Pre-compute cheapest variant price per tier per product for client-side instant switching
   const productTierPricesMap = new Map<string, Record<string, number>>()
@@ -107,11 +154,37 @@ export default async function PaginatedProducts({
     productTierPricesMap.set(product.id, tierPrices)
   }
 
-  const filtered = searchQuery
-    ? pricedProducts.filter((p) => matchesSearch(p, searchQuery))
-    : pricedProducts
+  // Apply brand and price filters after pricing is computed
+  const tierId = await getTierId()
 
-  const totalPages = Math.ceil(pricedProducts.length / PRODUCT_LIMIT)
+  let postFiltered = pricedProducts
+
+  if (brandFilter && brandFilter.length > 0) {
+    postFiltered = postFiltered.filter((p) =>
+      brandFilter.includes(p.subtitle ?? "")
+    )
+  }
+
+  if (minPrice !== undefined || maxPrice !== undefined) {
+    postFiltered = postFiltered.filter((p) => {
+      if (!p.id) return true
+      const tierPrices = productTierPricesMap.get(p.id)
+      if (!tierPrices) return false
+      const price = tierPrices[tierId] ?? tierPrices["retail"]
+      if (price === undefined) return false
+      if (minPrice !== undefined && price < minPrice) return false
+      if (maxPrice !== undefined && price > maxPrice) return false
+      return true
+    })
+  }
+
+  const filtered = searchQuery
+    ? postFiltered.filter((p) => matchesSearch(p, searchQuery))
+    : postFiltered
+
+  const totalPages = hasPostFilters
+    ? Math.ceil(filtered.length / PRODUCT_LIMIT)
+    : Math.ceil(catalogueCount / PRODUCT_LIMIT)
 
   if (filtered.length === 0) {
     return (
@@ -120,6 +193,12 @@ export default async function PaginatedProducts({
       </p>
     )
   }
+
+  // Paginate the filtered results (only needed in hasPostFilters path)
+  const pageStart = (page - 1) * PRODUCT_LIMIT
+  const paginated = hasPostFilters
+    ? filtered.slice(pageStart, pageStart + PRODUCT_LIMIT)
+    : filtered
 
   const isList = view === "list"
 
@@ -133,7 +212,7 @@ export default async function PaginatedProducts({
         }
         data-testid="products-list"
       >
-        {filtered.map((p) => {
+        {paginated.map((p) => {
           return (
             <li key={p.id}>
               <ProductPreview

@@ -1,6 +1,13 @@
 import { Metadata } from "next"
 
-import { parseOptionValueIds } from "@lib/util/product-option-filters"
+import {
+  parseBrands,
+  parseCategoryIds,
+  parseOptionValueIds,
+  parsePrice,
+  MIN_PRICE_QUERY_KEY,
+  MAX_PRICE_QUERY_KEY,
+} from "@lib/util/product-option-filters"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
 import StoreTemplate from "@modules/store/templates"
 
@@ -29,6 +36,10 @@ export default async function StorePage(props: Params) {
   const searchParams = await props.searchParams;
   const { sortBy, page, q, view } = searchParams
   const optionValueIds = parseOptionValueIds(searchParams)
+  const brands = parseBrands(searchParams)
+  const categoryIds = parseCategoryIds(searchParams)
+  const minPrice = parsePrice(searchParams, MIN_PRICE_QUERY_KEY)
+  const maxPrice = parsePrice(searchParams, MAX_PRICE_QUERY_KEY)
 
   return (
     <StoreTemplate
@@ -38,6 +49,10 @@ export default async function StorePage(props: Params) {
       optionValueIds={optionValueIds}
       searchQuery={typeof q === "string" ? q : undefined}
       view={view === "list" ? "list" : "grid"}
+      brandFilter={brands.length ? brands : undefined}
+      categoryIds={categoryIds.length ? categoryIds : undefined}
+      minPrice={minPrice}
+      maxPrice={maxPrice}
     />
   )
 }

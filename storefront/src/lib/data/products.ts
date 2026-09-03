@@ -93,6 +93,44 @@ export const listProducts = async ({
 }
 
 /**
+ * Returns a sorted list of unique non-empty brand names (product subtitles).
+ */
+export const listBrands = async (countryCode: string): Promise<string[]> => {
+  const region = await getRegion(countryCode)
+  if (!region) return []
+
+  const headers = { ...(await getAuthHeaders()) }
+  const next = { ...(await getCacheOptions("products")) }
+
+  const { products } = await sdk.client
+    .fetch<{ products: HttpTypes.StoreProduct[] }>("/store/products", {
+      method: "GET",
+      query: {
+        limit: 500,
+        region_id: region.id,
+        fields: "id,subtitle",
+      },
+      headers,
+      next,
+      cache: "force-cache",
+    })
+    .then(({ products }) => ({ products }))
+    .catch(() => ({ products: [] as HttpTypes.StoreProduct[] }))
+
+  const subtitles: string[] = products
+    .map((p: HttpTypes.StoreProduct) =>
+      typeof p.subtitle === "string" ? p.subtitle.trim() : ""
+    )
+    .filter((s: string): s is string => s.length > 0)
+
+  const brands = Array.from(new Set(subtitles)).sort((a: string, b: string) =>
+    a.localeCompare(b, "ru")
+  )
+
+  return brands
+}
+
+/**
  * This will fetch 100 products to the Next.js cache and sort them based on the sortBy parameter.
  * It will then return the paginated products based on the page and limit parameters.
  */
