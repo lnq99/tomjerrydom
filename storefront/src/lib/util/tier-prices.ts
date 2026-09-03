@@ -20,9 +20,12 @@ export function applyTierPrices(
       const cp = (variant as any).calculated_price
       return {
         ...variant,
-        calculated_price: cp
-          ? { ...cp, calculated_amount: price, original_amount: price }
-          : null,
+        calculated_price: {
+          ...(cp ?? {}),
+          calculated_amount: price,
+          original_amount: price,
+          currency_code: "rub",
+        },
       } as HttpTypes.StoreProductVariant
     }) ?? null
     return { ...product, variants } as HttpTypes.StoreProduct

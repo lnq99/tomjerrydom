@@ -101,7 +101,12 @@ for fname in CSV_FILES:
             categories[cat_name].add(subcat)
 
         variants = parse_variants(row[6])
-        capital = parse_price(row[7])  # Vốn (штуки) — import/cost price only
+
+        # Cost = lowest non-null value across all price columns
+        price_cols = [row[7], row[8], row[9], row[10], row[11]]  # Vốn штуки/блок, ОПТ штуки/блок, РОЗ
+        prices = [p for p in (parse_price(c) for c in price_cols) if p is not None and p > 0]
+        cost = min(prices) if prices else None
+
         img_url = row[15].strip() or None
         img_name = row[14].strip() or None
 
@@ -110,7 +115,7 @@ for fname in CSV_FILES:
             "subcategory": subcat or None,
             "title": title,
             "variants": variants,
-            "capital": capital,
+            "cost": cost,
             "img_url": img_url,
             "img_name": img_name,
         })
@@ -127,7 +132,7 @@ output = {
         "total_products": len(products),
         "skipped_empty_title": skipped,
         "products_with_variants": sum(1 for p in products if p["variants"]),
-        "products_with_capital": sum(1 for p in products if p["capital"] is not None),
+        "products_with_cost": sum(1 for p in products if p["cost"] is not None),
         "products_with_images": sum(1 for p in products if p["img_url"]),
         "total_categories": len(cat_list),
         "total_subcategories": sum(len(c["subcategories"]) for c in cat_list),

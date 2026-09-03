@@ -43,6 +43,7 @@ function slugify(text: string): string {
     .toLowerCase()
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_]+/g, "-")
+    .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "")
     .substring(0, 255)
 }
@@ -164,8 +165,9 @@ export default async function import_catalog({
     if (!parentId) continue
 
     for (const subName of cat.subcategories) {
-      const subHandle = slugify(`${cat.name}-${subName}`)
-      if (!catIdByHandle.has(subHandle)) {
+      const baseHandle = slugify(`${cat.name}-${subName}`)
+      if (!catIdByHandle.has(baseHandle)) {
+        const subHandle = ensureUniqueHandle(baseHandle, seenHandles)
         subToCreate.push({ name: subName, handle: subHandle, parent_category_id: parentId })
       }
     }
@@ -201,12 +203,13 @@ export default async function import_catalog({
   // Check existing product titles to skip already-imported ones
   const { data: existingProducts } = await query.graph({
     entity: "product",
-    fields: ["id", "title"],
+    fields: ["id", "title", "handle"],
   })
   const existingTitles = new Set(existingProducts.map((p: any) => p.title as string))
   logger.info(`${existingTitles.size} products already exist — will skip duplicates`)
 
-  const productHandles = new Set<string>()
+  // Seed productHandles with existing handles so ensureUniqueHandle avoids collisions
+  const productHandles = new Set<string>(existingProducts.map((p: any) => p.handle as string))
   const PRODUCT_BATCH = 25
   let created = 0
   let skipped = 0
@@ -218,11 +221,19 @@ export default async function import_catalog({
 
     const productsInput = batch.map((p) => {
       const categoryId = resolveCategoryId(p.category, p.subcategory)
-      const handle = ensureUniqueHandle(slugify(p.title), productHandles)
+      const handle = ensureUniqueHandle(slugify(p.title) || "product", productHandles)
 
-      // Each flavor → one variant; if no variants, one default variant
-      const variantTitles = p.variants.length > 0 ? p.variants : ["Standard"]
-      const hasOptions = p.variants.length > 0
+      // Each flavor → one variant; if no variants, one default "Standard" variant
+      // Always include the "Вкус" option so all products share the same schema
+      const rawVariants = p.variants.length > 0 ? p.variants : ["Standard"]
+      // Deduplicate variant titles (preserve order)
+      const seen = new Set<string>()
+      const variantTitles = rawVariants.filter((v) => {
+        const key = v.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
 
       return {
         title: p.title,
@@ -231,23 +242,12 @@ export default async function import_catalog({
         sales_channels: [{ id: salesChannelId }],
         categories: categoryId ? [{ id: categoryId }] : [],
         metadata: p.cost !== null ? { cost: p.cost } : {},
-        ...(hasOptions
-          ? {
-              options: [{ title: "Вкус", values: variantTitles }],
-              variants: variantTitles.map((v) => ({
-                title: v,
-                options: { Вкус: v },
-                manage_inventory: false,
-              })),
-            }
-          : {
-              variants: [
-                {
-                  title: "Standard",
-                  manage_inventory: false,
-                },
-              ],
-            }),
+        options: [{ title: "Вкус", values: variantTitles }],
+        variants: variantTitles.map((v) => ({
+          title: v,
+          options: { Вкус: v },
+          manage_inventory: false,
+        })),
       }
     })
 
