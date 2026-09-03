@@ -5,6 +5,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import Thumbnail from "../thumbnail"
 import PreviewPrice from "./price"
 import QuickAddButton from "../quick-add-button"
+import { VariantChip } from "../variant-chip"
 
 const NEW_DAYS = 14
 
@@ -27,12 +28,7 @@ function VariantPills({ variants }: { variants: HttpTypes.StoreProductVariant[] 
   return (
     <div className="flex flex-wrap gap-1 mt-2">
       {shown.map((v) => (
-        <span
-          key={v.id}
-          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] leading-none border border-ui-border-base text-ui-fg-muted bg-ui-bg-subtle whitespace-nowrap"
-        >
-          {v.title}
-        </span>
+        <VariantChip key={v.id} label={v.title ?? ""} size="sm" />
       ))}
       {rest > 0 && (
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] leading-none text-ui-fg-muted">
@@ -93,12 +89,7 @@ export default async function ProductPreview({
               {variants.length > 1 && (
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {variants.slice(0, 5).map((v) => (
-                    <span
-                      key={v.id}
-                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] leading-none border border-ui-border-base text-ui-fg-muted bg-ui-bg-subtle whitespace-nowrap"
-                    >
-                      {v.title}
-                    </span>
+                    <VariantChip key={v.id} label={v.title ?? ""} size="sm" />
                   ))}
                   {variants.length > 5 && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] leading-none text-ui-fg-muted">
