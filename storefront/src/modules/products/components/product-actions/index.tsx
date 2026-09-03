@@ -93,28 +93,13 @@ export default function ProductActions({
     router.replace(pathname + "?" + params.toString(), { scroll: false })
   }, [selectedVariant, isValidVariant])
 
-  // check if the selected variant is in stock
-  const inStock = useMemo(() => {
-    // If we don't manage inventory, we can always add to cart
-    if (selectedVariant && !selectedVariant.manage_inventory) {
-      return true
-    }
-
-    // If we allow back orders on the variant, we can add to cart
-    if (selectedVariant?.allow_backorder) {
-      return true
-    }
-
-    // If there is inventory available, we can add to cart
-    if (
-      selectedVariant?.manage_inventory &&
-      (selectedVariant?.inventory_quantity || 0) > 0
-    ) {
-      return true
-    }
-
-    // Otherwise, we can't add to cart
-    return false
+  // Always allow adding to cart — we can source from nearby suppliers.
+  // isLowStock just shows a warning when tracked inventory is at 0 or below.
+  const inStock = true
+  const isLowStock = useMemo(() => {
+    if (!selectedVariant?.manage_inventory) return false
+    if (selectedVariant?.allow_backorder) return false
+    return (selectedVariant?.inventory_quantity ?? 1) <= 0
   }, [selectedVariant])
 
   const actionsRef = useRef<HTMLDivElement>(null)
@@ -194,7 +179,7 @@ export default function ProductActions({
 
         <ProductPrice product={product} variant={selectedVariant} />
 
-        {cartQuantity > 0 && inStock && selectedVariant && isValidVariant ? (
+        {cartQuantity > 0 && selectedVariant && isValidVariant ? (
           <div
             className="flex items-center w-full h-10 border border-ui-border-base rounded-rounded overflow-hidden"
             data-testid="quantity-controls"
@@ -220,26 +205,21 @@ export default function ProductActions({
             </button>
           </div>
         ) : (
-          <Button
-            onClick={handleAddToCart}
-            disabled={
-              !inStock ||
-              !selectedVariant ||
-              !!disabled ||
-              isAdding ||
-              !isValidVariant
-            }
-            variant="primary"
-            className="w-full h-10"
-            isLoading={isAdding}
-            data-testid="add-product-button"
-          >
-            {!selectedVariant
-              ? "Выберите вариант"
-              : !inStock || !isValidVariant
-              ? "Нет в наличии"
-              : "В корзину"}
-          </Button>
+          <>
+            {isLowStock && (
+              <p className="text-xs text-orange-500">Мало на складе — уточните наличие</p>
+            )}
+            <Button
+              onClick={handleAddToCart}
+              disabled={!selectedVariant || !!disabled || isAdding || !isValidVariant}
+              variant="primary"
+              className="w-full h-10"
+              isLoading={isAdding}
+              data-testid="add-product-button"
+            >
+              {!selectedVariant ? "Выберите вариант" : "В корзину"}
+            </Button>
+          </>
         )}
         <MobileActions
           product={product}

@@ -247,6 +247,12 @@ export default async function import_catalog({
           title: v,
           options: { Вкус: v },
           manage_inventory: false,
+          prices: [
+            {
+              amount: p.cost !== null ? Math.round(p.cost) : 1,
+              currency_code: "rub",
+            },
+          ],
         })),
       }
     })

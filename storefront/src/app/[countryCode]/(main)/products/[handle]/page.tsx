@@ -132,9 +132,12 @@ export default async function ProductPage(props: Props) {
       const cp = (v as any).calculated_price
       return {
         ...v,
-        calculated_price: cp
-          ? { ...cp, calculated_amount: price, original_amount: price }
-          : null,
+        calculated_price: {
+          ...(cp ?? {}),
+          calculated_amount: price,
+          original_amount: price,
+          currency_code: "rub",
+        },
       } as HttpTypes.StoreProductVariant
     }) ?? null
     pricedProduct = { ...rawProduct, variants } as HttpTypes.StoreProduct
