@@ -229,6 +229,7 @@ export async function uploadFile(file: File): Promise<{ url: string; fileId: str
     throw new ApiError(res.status, err.message ?? res.statusText)
   }
   const data = await res.json()
+  if (!data.files?.length) throw new ApiError(0, "Upload returned no files")
   return { url: data.files[0].url, fileId: data.files[0].id }
 }
 

@@ -441,7 +441,7 @@ export default function OrderDetailPage() {
               </div>
               {(() => {
                 if (!showSensitive) return null
-                const profit = order.items.reduce((s, i) => s + (i.unit_price - i.cost_price) * (ps.picked[i.id] ?? i.quantity), 0)
+                const profit = order.items.reduce((s, i) => s + (i.unit_price - (i.cost_price ?? 0)) * (ps.picked[i.id] ?? i.quantity), 0)
                 if (profit <= 0) return null
                 return (
                   <div className="text-xs text-green-600 font-semibold">LN: {formatRub(profit)}</div>
@@ -473,7 +473,7 @@ export default function OrderDetailPage() {
             </div>
           </div>
           {(() => {
-            const profit = order.items.reduce((s, i) => s + (i.unit_price - i.cost_price) * (ps.picked[i.id] ?? i.quantity), 0)
+            const profit = order.items.reduce((s, i) => s + (i.unit_price - (i.cost_price ?? 0)) * (ps.picked[i.id] ?? i.quantity), 0)
             if (profit <= 0) return null
             return (
               <div className="flex justify-between items-center">
@@ -537,7 +537,7 @@ export default function OrderDetailPage() {
             </div>
             <div className="flex justify-between text-base font-bold">
               <span>Tổng cộng</span>
-              <span>{formatRub(beforeTotal)}</span>
+              <span>{formatRub(afterTotal)}</span>
             </div>
           </div>
           <div className="flex gap-2 pt-1">

@@ -26,7 +26,7 @@ type Props = {
   onSetQty: (variantId: string, qty: number) => void
   onSetPrice: (variantId: string, price: number) => void
   onRemove: (variantId: string) => void
-  onClear: () => void
+  onClear: (tabId?: string) => void
   onOrderCreated?: (orderId: string) => void
   cartTabs: CartTabInfo[]
   onSwitchTab: (id: string) => void
@@ -55,10 +55,10 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
   }, [bankingOpen])
 
   async function handleSell() {
-    if (cart.items.length === 0 || selling) return
+    if (cart.items.length === 0 || selling || ordering) return
     setSelling(true)
+    const activeTabId = cartTabs.find((t) => t.isActive)?.id
     try {
-      const activeTabId = cartTabs.find((t) => t.isActive)?.id
       const result = await createPosOrder({
         items: cart.items.map((i) => ({
           variantId: i.variantId,
@@ -74,7 +74,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         mode: "sell",
       })
       setSaleResult({ order: result.order, cart, total, tabId: activeTabId })
-      onClear()
+      onClear(activeTabId)
     } catch (e: any) {
       toast.error(e?.message ?? "Ошибка при создании заказа")
     } finally {
@@ -83,10 +83,10 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
   }
 
   async function handleCreateOrder() {
-    if (cart.items.length === 0 || ordering) return
+    if (cart.items.length === 0 || ordering || selling) return
     setOrdering(true)
+    const activeTabId = cartTabs.find((t) => t.isActive)?.id
     try {
-      const activeTabId = cartTabs.find((t) => t.isActive)?.id
       const result = await createPosOrder({
         items: cart.items.map((i) => ({
           variantId: i.variantId,
@@ -101,7 +101,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         tierId,
         mode: "order",
       })
-      onClear()
+      onClear(activeTabId)
       if (activeTabId && cartTabs.length > 1) onCloseTab(activeTabId)
       onOrderCreated?.(result.order.id)
       toast.success(`Đơn #${result.order.display_id} đã tạo`)
@@ -188,7 +188,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         {cart.items.length > 0 && (
           <button
             type="button"
-            onClick={onClear}
+            onClick={() => onClear()}
             className="text-xs text-muted-foreground hover:text-destructive"
           >
             Xóa giỏ
@@ -227,7 +227,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
         <Button
           size="lg"
           className="w-full"
-          disabled={cart.items.length === 0 || selling}
+          disabled={cart.items.length === 0 || selling || ordering}
           onClick={handleSell}
         >
           {selling ? "Đang xử lý..." : "Bán"}
@@ -238,7 +238,7 @@ export function CartPanel({ cart, total, tierId, tiers, onTierChange, onSetQty, 
             size="sm"
             variant="outline"
             className="w-full"
-            disabled={cart.items.length === 0 || ordering}
+            disabled={cart.items.length === 0 || ordering || selling}
             onClick={handleCreateOrder}
           >
             {ordering ? "..." : "Tạo đơn hàng"}

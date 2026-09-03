@@ -136,12 +136,14 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
       {!isLoading && products.length === 0 && <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Không tìm thấy</div>}
 
       {!isLoading && view === "cards" && products.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 flex-1 overflow-y-auto content-start">
-          {products.map((p) => (
-            <ProductCard key={p.id} product={p} tiers={tiers} tierId={tierId}
-              tierPrice={tierPrice(p.id)} cost={productCost(p.id)} showCost={showSensitive}
-              allPrices={priceMap.get(p.id)?.calculated_prices ?? {}} onTap={handleTap} />
-          ))}
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            {products.map((p) => (
+              <ProductCard key={p.id} product={p} tiers={tiers} tierId={tierId}
+                tierPrice={tierPrice(p.id)} cost={productCost(p.id)} showCost={showSensitive}
+                allPrices={priceMap.get(p.id)?.calculated_prices ?? {}} onTap={handleTap} />
+            ))}
+          </div>
         </div>
       )}
 
@@ -157,7 +159,7 @@ export function ProductSearch({ tierId, tiers, pricingData, onAddItem }: Props) 
               <button key={product.id} type="button" onClick={() => handleTap(product)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left">
                 {product.thumbnail
-                  ? <img src={product.thumbnail} alt="" className="h-12 w-12 rounded object-cover shrink-0" />
+                  ? <img src={product.thumbnail} alt="" loading="lazy" className="h-12 w-12 rounded object-cover shrink-0" />
                   : <div className="h-12 w-12 rounded bg-muted shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate leading-tight">{product.title}</p>
@@ -274,9 +276,9 @@ function ProductCard({ product, tiers, tierId, tierPrice, cost, showCost, allPri
   const otherTiers = tiers.filter((t) => t.id !== tierId)
   return (
     <button type="button" onClick={() => onTap(product)}
-      className="flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors hover:bg-accent active:scale-95">
+      className="w-full flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors hover:bg-accent active:scale-95">
       {product.thumbnail
-        ? <img src={product.thumbnail} alt={product.title} className="aspect-square w-full object-cover" />
+        ? <img src={product.thumbnail} alt={product.title} loading="lazy" className="aspect-square w-full object-cover" />
         : <div className="aspect-square w-full bg-muted" />}
       <div className="flex flex-col gap-0.5 p-2">
         <span className="text-xs font-medium line-clamp-2 leading-snug">{product.title}</span>
@@ -331,10 +333,10 @@ function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onC
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
+      <DialogContent className="max-w-sm flex flex-col max-h-[90vh]">
+        <DialogHeader className="shrink-0">
           <div className="flex items-center gap-3">
-            {product.thumbnail && <img src={product.thumbnail} alt="" className="h-12 w-12 rounded object-cover shrink-0" />}
+            {product.thumbnail && <img src={product.thumbnail} alt="" loading="lazy" className="h-12 w-12 rounded object-cover shrink-0" />}
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-base">{product.title}</DialogTitle>
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
@@ -352,7 +354,7 @@ function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onC
           </div>
         </DialogHeader>
 
-        <div className="flex flex-col divide-y border rounded-lg overflow-hidden">
+        <div className="flex flex-col divide-y border rounded-lg overflow-y-auto min-h-0">
           {(product.variants ?? []).filter((v) => !v.metadata?.disabled).map((variant) => {
             const qty = qtys[variant.id] ?? 0
             const stock = stockData?.stock[variant.id]
@@ -377,7 +379,7 @@ function VariantPicker({ product, tiers, tierId, allPrices, cost, onConfirm, onC
           })}
         </div>
 
-        <Button className="w-full" disabled={totalQty === 0} onClick={handleConfirm}>
+        <Button className="w-full shrink-0" disabled={totalQty === 0} onClick={handleConfirm}>
           {totalQty > 0 ? `Thêm ${totalQty} cái${totalAmount > 0 ? ` · ${formatRub(totalAmount)}` : ""}` : "Chọn số lượng"}
         </Button>
       </DialogContent>

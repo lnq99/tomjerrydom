@@ -174,8 +174,9 @@ export default function PosPage() {
   )
 
   function handleTierChange(newTierId: string) {
+    if (!pricingData) return
     const priceMap = new Map<string, number>()
-    for (const prod of pricingData?.products ?? []) {
+    for (const prod of pricingData.products) {
       priceMap.set(prod.id, prod.calculated_prices[newTierId] ?? 0)
     }
     dispatch({ type: "RETIER", tabId: state.activeId, tierId: newTierId, prices: priceMap })
@@ -254,7 +255,7 @@ export default function PosPage() {
             onSetQty={(id, qty) => dispatch({ type: "CART", tabId: state.activeId, action: { type: "QTY", variantId: id, quantity: qty } })}
             onSetPrice={(id, price) => dispatch({ type: "CART", tabId: state.activeId, action: { type: "PRICE", variantId: id, unitPrice: price } })}
             onRemove={(id) => dispatch({ type: "CART", tabId: state.activeId, action: { type: "REMOVE", variantId: id } })}
-            onClear={() => dispatch({ type: "CART", tabId: state.activeId, action: { type: "CLEAR" } })}
+            onClear={(tabId) => dispatch({ type: "CART", tabId: tabId ?? state.activeId, action: { type: "CLEAR" } })}
             onOrderCreated={(orderId) => router.push(`/orders/${orderId}`)}
             cartTabs={cartTabs}
             onSwitchTab={(id) => dispatch({ type: "SWITCH_TAB", tabId: id })}

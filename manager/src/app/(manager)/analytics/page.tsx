@@ -132,7 +132,7 @@ export default function AnalyticsPage() {
                   interval={days <= 7 ? 0 : days <= 30 ? 4 : 13}
                 />
                 <YAxis
-                  tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 100 / 1000)}k` : `${Math.round(v / 100)}`}
+                  tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v))}
                   tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
                   axisLine={false}
@@ -197,7 +197,7 @@ function RecentOrderRow({ order, showSensitive }: { order: AdminOrder; showSensi
     [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
     order.customer?.email ||
     "Khách"
-  const isCancelled = !isCountable(order)
+  const isCancelled = order.status === "canceled"
   const cost = orderCost(order)
   const profit = order.total - cost
 
