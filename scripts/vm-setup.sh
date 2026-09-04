@@ -8,7 +8,7 @@ REPO_URL="${REPO_URL:-}"   # set via: REPO_URL=https://github.com/... bash vm-se
 echo "=== 1/5  System packages ==="
 sudo apt-get update -q
 sudo apt-get install -y -q \
-  curl git ca-certificates gnupg ufw \
+  curl git ca-certificates gnupg \
   netfilter-persistent iptables-persistent
 
 echo "=== 2/5  Docker ==="

@@ -1,35 +1,214 @@
 # Runbook — TomJerryDom Production
 
 Oracle Cloud Always Free VM · ARM64 · Docker Compose  
+SSH key: `~/.ssh/oracle-tjd.key`  
 **This doc assumes you are SSH'd into the VM unless stated otherwise.**
+
+```bash
+# Set once in your shell session for convenience:
+export VM_IP=<your-vm-ip>
+export SSH_KEY=~/.ssh/oracle-tjd.key
+```
 
 ---
 
 ## SSH Access
 
 ```bash
-ssh -i ~/.ssh/oracle_key ubuntu@<VM_PUBLIC_IP>
-cd /opt/tomjerrydom
+ssh -i $SSH_KEY ubuntu@$VM_IP
+cd ~/app
 ```
+
+---
+
+## First-Time Deployment
+
+### 1. Run the VM bootstrap script
+
+From your local machine:
+
+```bash
+scp -i $SSH_KEY scripts/vm-setup.sh ubuntu@$VM_IP:~/vm-setup.sh
+ssh -i $SSH_KEY ubuntu@$VM_IP "bash ~/vm-setup.sh"
+```
+
+Installs Docker, opens firewall ports 80/443, clones the repo to `~/app`.
+
+> **Known issue:** `ufw` conflicts with `iptables-persistent` on Ubuntu 24.04 — it has been removed from vm-setup.sh. The script uses `iptables` directly, so `ufw` is not needed.
+
+Log out and back in after the script finishes so Docker group membership takes effect.
+
+### 2. Set up GitHub deploy key (private repo)
+
+On your local machine:
+
+```bash
+ssh-keygen -t ed25519 -C "oracle-vm-deploy" -f ~/.ssh/github-deploy -N ""
+cat ~/.ssh/github-deploy.pub   # copy this
+```
+
+Add the public key to GitHub: repo → **Settings → Deploy keys → Add deploy key** (read-only is fine).
+
+Copy the private key to the VM:
+
+```bash
+scp -i $SSH_KEY ~/.ssh/github-deploy ubuntu@$VM_IP:~/.ssh/github-deploy
+ssh -i $SSH_KEY ubuntu@$VM_IP "chmod 600 ~/.ssh/github-deploy"
+```
+
+On the VM, configure SSH to always use it for GitHub:
+
+```bash
+cat >> ~/.ssh/config << 'EOF'
+Host github.com
+  IdentityFile ~/.ssh/github-deploy
+  IdentitiesOnly yes
+EOF
+```
+
+Then clone:
+
+```bash
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github-deploy
+git clone git@github.com:yourname/yourrepo.git ~/app
+```
+
+### 3. Create and fill `.env`
+
+From your local machine:
+
+```bash
+scp -i $SSH_KEY .env.example ubuntu@$VM_IP:~/app/.env
+ssh -i $SSH_KEY ubuntu@$VM_IP "nano ~/app/.env"
+```
+
+Required fields:
+
+| Variable | Value |
+|---|---|
+| `DOMAIN` | your API domain, e.g. `api.tomjerrydom.com` |
+| `MANAGER_DOMAIN` | e.g. `manager.tomjerrydom.com` |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 32` |
+| `JWT_SECRET` | `openssl rand -hex 32` |
+| `COOKIE_SECRET` | `openssl rand -hex 32` |
+| `R2_ACCESS_KEY_ID/SECRET` | from Cloudflare R2 dashboard |
+| `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `YOOKASSA_SHOP_ID/SECRET_KEY` | from YooKassa dashboard |
+| CORS vars | replace `localhost` with your real domains |
+
+### 4. Point DNS before starting
+
+Add two A records at your DNS provider:
+
+```
+api.yourdomain.com     → <VM_IP>
+manager.yourdomain.com → <VM_IP>
+```
+
+Caddy auto-provisions TLS certs — it fails if DNS isn't pointing yet.
+
+### 5. Build and start
+
+```bash
+cd ~/app
+docker compose up -d --build
+docker compose logs -f medusa   # watch for startup/migration errors
+```
+
+First boot takes 2–5 minutes. Medusa runs DB migrations automatically on start.
+
+### 6. Verify
+
+```bash
+docker compose ps
+curl -sf https://api.yourdomain.com/health && echo OK
+```
+
+### 7. Set up backup cron
+
+```bash
+sudo apt-get install -y awscli   # install AWS CLI for R2 uploads
+
+crontab -e
+# Add:
+0 3 * * * cd ~/app && set -a && source .env && set +a && bash scripts/backup.sh >> /var/log/tjd-backup.log 2>&1
+```
+
+---
+
+## Running Without a Domain (IP-only / dev mode)
+
+Caddy cannot provision TLS certs for a raw IP. Use HTTP-only mode temporarily.
+
+Edit `infra/caddy/Caddyfile` on the VM:
+
+```
+http://<VM_IP> {
+    reverse_proxy medusa:9000
+}
+
+http://<VM_IP>:3100 {
+    reverse_proxy manager:3100
+}
+```
+
+In `.env`:
+
+```
+DOMAIN=<VM_IP>
+MANAGER_DOMAIN=<VM_IP>
+NEXT_PUBLIC_MEDUSA_BACKEND_URL=http://<VM_IP>
+STORE_CORS=http://<VM_IP>:3000
+ADMIN_CORS=http://<VM_IP>:7001,http://<VM_IP>:3100
+AUTH_CORS=http://<VM_IP>,http://<VM_IP>:3100
+```
+
+Open port 3100 on the VM firewall so the manager is reachable:
+
+```bash
+sudo iptables -I INPUT 6 -p tcp --dport 3100 -j ACCEPT
+sudo netfilter-persistent save
+```
+
+**Switching to a real domain later:**
+
+1. Point DNS to `<VM_IP>`
+2. Restore the original Caddyfile: `git checkout infra/caddy/Caddyfile`
+3. Update `DOMAIN`, `MANAGER_DOMAIN`, and CORS vars in `.env`
+4. `docker compose restart proxy` — Caddy auto-provisions the TLS cert
+
+---
+
+## Deploy an Update
+
+```bash
+git pull origin main
+docker compose build medusa manager        # rebuild changed services
+docker compose up -d --no-deps medusa manager   # restart only what changed
+docker compose logs -f medusa              # watch for errors
+```
+
+If dependencies changed (new npm packages):
+
+```bash
+docker compose build --no-cache medusa
+docker compose up -d --no-deps medusa
+```
+
+Storefront deploys automatically via Cloudflare Pages on `git push` — no VM action needed.
 
 ---
 
 ## Health Check
 
-Quick sanity check for all services:
-
 ```bash
-# Service status
 docker compose ps
-
-# Tail all logs (last 50 lines each)
 docker compose logs --tail=50
-
-# HTTP health
-curl -sf https://api.example.com/health && echo OK
+curl -sf https://api.yourdomain.com/health && echo OK
 ```
 
-Expected healthy output from `docker compose ps`:
+Expected healthy output:
+
 ```
 NAME       STATUS          PORTS
 postgres   Up (healthy)
@@ -50,6 +229,7 @@ docker compose restart proxy
 ```
 
 Full stack restart:
+
 ```bash
 docker compose down && docker compose up -d
 ```
@@ -59,30 +239,10 @@ docker compose down && docker compose up -d
 ## View Logs
 
 ```bash
-# Follow logs for one service
 docker compose logs -f medusa
 docker compose logs -f postgres
 docker compose logs -f proxy
-
-# Last N lines
 docker compose logs --tail=200 medusa
-```
-
----
-
-## Deploy an Update
-
-```bash
-git pull origin main
-docker compose build medusa        # rebuild Medusa image
-docker compose up -d --no-deps medusa   # restart only Medusa (migrations run on start)
-docker compose logs -f medusa      # watch for errors
-```
-
-If dependencies changed (new npm packages):
-```bash
-docker compose build --no-cache medusa
-docker compose up -d --no-deps medusa
 ```
 
 ---
@@ -104,7 +264,6 @@ docker compose exec medusa node_modules/.bin/medusa db:migrate
 ### Manual backup (outside of cron)
 
 ```bash
-# Load env vars (backup.sh reads them from environment)
 set -a && source .env && set +a
 bash scripts/backup.sh
 ```
@@ -160,28 +319,17 @@ If port 80 is blocked, ACME HTTP challenge fails — verify Oracle Cloud securit
 ## Disk & Memory
 
 ```bash
-# Disk usage
 df -h /
-
-# Docker volumes
 docker system df
-
-# Memory
 free -h
-
-# Per-container resource usage (live)
 docker stats
 ```
 
 If disk is filling up:
+
 ```bash
-# Remove unused images and stopped containers
 docker system prune -f
-
-# Check log sizes
 du -sh /var/lib/docker/containers/*/*-json.log | sort -h | tail -20
-
-# Truncate a runaway log (replace with actual container ID)
 truncate -s 0 /var/lib/docker/containers/<id>/<id>-json.log
 ```
 
@@ -200,28 +348,22 @@ If the VM is RAM-constrained and Redis needs to go:
 
 ## Rotate Secrets
 
-Edit `.env` on the VM:
 ```bash
 nano .env
-```
-
-Then restart the affected service:
-```bash
 docker compose restart medusa
 ```
 
-**After rotating `JWT_SECRET` or `COOKIE_SECRET`:** all existing user sessions are invalidated — admin users must log in again.
+**After rotating `JWT_SECRET` or `COOKIE_SECRET`:** all existing sessions are invalidated — users must log in again.
 
-**After rotating YooKassa keys:** update both `.env` (backend) and the YooKassa dashboard webhook settings.
+**After rotating YooKassa keys:** update both `.env` and the YooKassa dashboard webhook settings.
 
 ---
 
 ## Telegram Bot (Cloudflare Worker)
 
-The bot runs on Cloudflare Workers — not on this VM. To manage it:
+Runs on Cloudflare Workers — not on this VM. Manage from your local machine:
 
 ```bash
-# From your local machine (not the VM)
 cd telegram-bot
 wrangler tail           # stream live logs
 wrangler deploy         # deploy new version
@@ -229,26 +371,26 @@ wrangler rollback       # roll back to previous version
 ```
 
 Rotate Worker secrets:
+
 ```bash
 wrangler secret put TELEGRAM_BOT_TOKEN
 wrangler secret put MEDUSA_API_KEY
 ```
 
 Re-register webhook (e.g. after token rotation):
+
 ```bash
-curl "https://api.telegram.org/bot<TOKEN>/setWebhook\
-?url=https://<worker>.workers.dev\
-&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<worker>.workers.dev&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
 ---
 
 ## Storefront (Cloudflare Pages)
 
-Served from Cloudflare Pages — not on this VM. Deployments trigger automatically on `git push` via Cloudflare Pages CI.
+Served from Cloudflare Pages — not on this VM. Deployments trigger automatically on `git push`.
 
 To force a redeploy without a code change:
-- Cloudflare Dashboard → Pages → TomJerryDom → Deployments → Retry deployment
+Cloudflare Dashboard → Pages → TomJerryDom → Deployments → Retry deployment
 
 ---
 
@@ -264,6 +406,7 @@ To force a redeploy without a code change:
 | Caddy TLS renewal fails | Port 80 blocked | Allow TCP 80 in Oracle Cloud security list |
 | Redis 8 OOM | `maxmemory 256mb` too low | Increase in `docker-compose.yml` or drop Redis entirely |
 | Worker 500 errors | KV namespace deleted or secret missing | Check `wrangler tail`, verify secrets with `wrangler secret list` |
+| `vm-setup.sh` fails on `ufw` | Conflicts with iptables-persistent | Already fixed in script — `ufw` removed |
 
 ---
 
@@ -271,6 +414,6 @@ To force a redeploy without a code change:
 
 | Job | Schedule | Command |
 |-----|----------|---------|
-| Database backup | Daily at 03:00 UTC | `0 3 * * * /opt/tomjerrydom/scripts/backup.sh >> /var/log/tomjerrydom-backup.log 2>&1` |
+| Database backup | Daily at 03:00 UTC | `0 3 * * * cd ~/app && set -a && source .env && set +a && bash scripts/backup.sh >> /var/log/tjd-backup.log 2>&1` |
 
 Add via `crontab -e` on the VM.

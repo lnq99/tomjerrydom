@@ -63,6 +63,36 @@ Architecture and build roadmap for TomJerryDom — a Medusa v2 e-commerce platfo
 
 ---
 
+## Testing — TODO
+
+### E2E CRUD Tests (Playwright + isolated `medusa_test` DB)
+
+Full plan at `docs/superpowers/plans/2026-09-04-e2e-crud-tests.md`
+
+**Scope:** CRUD product (manager), CRUD order (manager), place/view order (storefront).
+
+**One-time manual prerequisites (do before running any task):**
+```bash
+createdb -U medusa -h localhost -p 5433 medusa_test
+cd backend
+DATABASE_URL=postgres://medusa:medusa_local@localhost:5433/medusa_test npx medusa db:migrate
+DATABASE_URL=postgres://medusa:medusa_local@localhost:5433/medusa_test npx medusa user -e test@admin.local -p test-password-123
+```
+
+**Tasks (in order):**
+- [ ] Task 1 — `backend/.env.test` pointing to `medusa_test`
+- [ ] Task 2 — `scripts/seed-test.ts` (idempotent: region, sales channel, stock location, pub key, test product)
+- [ ] Task 3 — Install Playwright in `manager/` + auth setup (saves login cookie)
+- [ ] Task 4 — `manager/e2e/products.spec.ts` (create → list → detail → update → delete)
+- [ ] Task 5 — `manager/e2e/orders.spec.ts` (create via API → view → mark paid → cancel)
+- [ ] Task 6 — Install Playwright in `storefront/`
+- [ ] Task 7 — `storefront/e2e/checkout.spec.ts` (browse → cart → checkout → confirmation)
+- [ ] Task 8 — `scripts/run-e2e-tests.sh` (migrate → seed → start Medusa → both suites)
+
+**Note:** storefront checkout requires a shipping option configured in Medusa admin (one-time setup, manual).
+
+---
+
 ## Manager App — Feature Backlog
 
 ### TODO: Grouped variant editor (2-level tree)
