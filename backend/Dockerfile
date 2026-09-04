@@ -8,12 +8,13 @@ WORKDIR /app
 
 # Install native build tools needed by some npm packages (e.g. sharp, bcrypt)
 RUN apk add --no-cache python3 make g++
+RUN npm install -g pnpm
 
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # ── Stage 2: production runtime ───────────────────────────────────────────────
 FROM node:20-alpine AS runner
