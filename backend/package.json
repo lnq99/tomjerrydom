@@ -54,14 +54,5 @@
   },
   "overrides": {
     "@aws-sdk/client-s3": "3.726.1"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@medusajs/telemetry",
-      "@swc/core",
-      "esbuild",
-      "msgpackr-extract",
-      "protobufjs"
-    ]
   }
 }
