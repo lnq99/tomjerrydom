@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
-# Targets linux/arm64 (Oracle Cloud Ampere A1). node:20-alpine is multi-arch
+# Targets linux/arm64 (Oracle Cloud Ampere A1). node:22-alpine is multi-arch
 # and will pull the arm64 layer automatically on aarch64 hosts.
 
 # ── Stage 1: build ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Install native build tools needed by some npm packages (e.g. sharp, bcrypt)
@@ -17,7 +17,7 @@ COPY . .
 RUN pnpm run build
 
 # ── Stage 2: production runtime ───────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 # dumb-init handles PID 1 responsibilities (signal forwarding, zombie reaping)
