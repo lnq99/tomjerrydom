@@ -11,7 +11,7 @@ RUN apk add --no-cache python3 make g++
 RUN npm install -g pnpm@11.24.0
 
 COPY package.json pnpm-lock.yaml .npmrc ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm approve-builds --all && pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm run build
