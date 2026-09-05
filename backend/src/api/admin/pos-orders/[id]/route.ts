@@ -24,7 +24,7 @@ async function returnVariantStock(
       entity: "product_variant",
       fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
       filters: { id: variantIds },
-    }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+    }) as unknown as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
 
     const variantToInvItem = new Map<string, string>()
     for (const v of links ?? []) {
@@ -81,7 +81,7 @@ async function deductVariantStock(
       entity: "product_variant",
       fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
       filters: { id: variantIds },
-    }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+    }) as unknown as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
 
     const variantToInvItem = new Map<string, string>()
     for (const v of links ?? []) {
@@ -332,7 +332,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
 
     // Cancel order — force-set status if already completed (sell mode)
     try {
-      await orderModule.cancelOrder(id)
+      await (orderModule as any).cancelOrder(id)
     } catch {
       await orderModule.updateOrders(id, { status: "canceled" } as any)
     }

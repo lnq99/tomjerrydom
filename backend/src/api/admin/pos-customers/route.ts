@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { getOrdersListWorkflow } from "@medusajs/core-flows"
+import { getOrdersListWorkflow } from "@medusajs/medusa/core-flows"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { result } = await getOrdersListWorkflow(req.scope).run({

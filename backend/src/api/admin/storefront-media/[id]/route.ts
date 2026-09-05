@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { deleteFilesWorkflow } from "@medusajs/core-flows"
+import { deleteFilesWorkflow } from "@medusajs/medusa/core-flows"
 import { STOREFRONT_MEDIA_MODULE } from "../../../../modules/storefront-media"
 import StorefrontMediaService from "../../../../modules/storefront-media/service"
 
@@ -8,7 +8,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params
   const body = req.body as { url?: string; title?: string | null; position?: number }
 
-  const item = await service.updateStorefrontMediaItems(id, body)
+  const item = await service.updateStorefrontMediaItem(id, body)
   res.json({ item })
 }
 

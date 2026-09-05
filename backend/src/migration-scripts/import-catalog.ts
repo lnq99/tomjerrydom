@@ -296,7 +296,7 @@ export default async function import_catalog({
           },
         ],
       },
-    })
+    } as any)
     for (const p of unlinked) {
       logger.info(`Linked "${(p as any).title}" to sales channel`)
     }

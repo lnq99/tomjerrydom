@@ -17,7 +17,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     entity: "product_variant",
     fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
     filters: { id: variantIds },
-  }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+  }) as unknown as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
 
   const inventory_item_ids: Record<string, string | null> = {}
   const invItemToVariant = new Map<string, string>()

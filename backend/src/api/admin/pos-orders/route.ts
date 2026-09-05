@@ -46,7 +46,7 @@ export async function reserveInventoryForOrder(
       entity: "product_variant",
       fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
       filters: { id: variantIds },
-    }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+    }) as unknown as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
 
     const variantToInvItem = new Map<string, string>()
     for (const v of links ?? []) {
@@ -103,7 +103,7 @@ async function deductVariantStock(
       entity: "product_variant",
       fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
       filters: { id: variantIds },
-    }) as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
+    }) as unknown as Promise<{ data: { id: string; inventory_items?: { id: string; inventory_item_id?: string }[] }[] }>)
 
     // variantId → inventory item ID (try inventory_item_id first, fall back to id)
     const variantToInvItem = new Map<string, string>()
