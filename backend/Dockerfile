@@ -36,4 +36,4 @@ EXPOSE 9000
 ENTRYPOINT ["dumb-init", "--"]
 # Runs migrations then starts the server.
 # In docker-compose, override this command to separate migrate from start if needed.
-CMD ["node", "index.js"]
+CMD ["node_modules/.bin/medusa", "start"]
