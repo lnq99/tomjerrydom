@@ -2,11 +2,11 @@
 # Targets linux/arm64 (Oracle Cloud Ampere A1).
 
 # ── Stage 1: build ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 RUN apk add --no-cache libc6-compat
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 RUN pnpm install --frozen-lockfile
@@ -19,11 +19,11 @@ ENV NEXT_PUBLIC_MEDUSA_BACKEND_URL=$NEXT_PUBLIC_MEDUSA_BACKEND_URL
 RUN pnpm build
 
 # ── Stage 2: production runtime ───────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 RUN apk add --no-cache dumb-init
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 
 ENV NODE_ENV=production
 
