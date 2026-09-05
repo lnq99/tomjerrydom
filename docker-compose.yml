@@ -74,7 +74,7 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-medusa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa}
+      DATABASE_URL: postgres://${POSTGRES_USER:-medusa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa}?sslmode=disable
       REDIS_URL: redis://redis:6379
     ports:
       - "9000:9000"
@@ -133,6 +133,8 @@ services:
       - "443:443/udp"   # HTTP/3
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy/cloudflare-origin.pem:/etc/caddy/cloudflare-origin.pem:ro
+      - ./infra/caddy/cloudflare-origin.key:/etc/caddy/cloudflare-origin.key:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
