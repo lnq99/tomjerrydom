@@ -8,7 +8,7 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 RUN npm install -g pnpm@9
 
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-lock.yaml package.json ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
