@@ -9,7 +9,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     },
   })
 
-  const { rows: orders } = result
+  const { rows: orders } = result as any
 
   const byKey = new Map<string, {
     name: string; phone: string; note: string

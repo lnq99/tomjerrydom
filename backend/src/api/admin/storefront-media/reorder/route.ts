@@ -11,7 +11,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   await Promise.all(
-    items.map(({ id, position }) => service.updateStorefrontMediaItem(id, { position }))
+    items.map(({ id, position }) => (service as any).updateStorefrontMediaItems(id, { position }))
   )
 
   res.json({ ok: true })

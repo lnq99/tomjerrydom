@@ -8,7 +8,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params
   const body = req.body as { url?: string; title?: string | null; position?: number }
 
-  const item = await service.updateStorefrontMediaItem(id, body)
+  const item = await (service as any).updateStorefrontMediaItems(id, body)
   res.json({ item })
 }
 
